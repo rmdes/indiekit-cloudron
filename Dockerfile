@@ -26,11 +26,17 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/endpoint-json-feed \
         @indiekit/endpoint-github \
         @indiekit/post-type-article \
+        @indiekit/post-type-audio \
+        @indiekit/post-type-bookmark \
+        @indiekit/post-type-event \
+        @indiekit/post-type-jam \
+        @indiekit/post-type-like \
         @indiekit/post-type-note \
         @indiekit/post-type-photo \
-        @indiekit/post-type-bookmark \
         @indiekit/post-type-reply \
-        @indiekit/post-type-like
+        @indiekit/post-type-repost \
+        @indiekit/post-type-rsvp \
+        @indiekit/post-type-video
 
 ENV NODE_ENV=production
 
