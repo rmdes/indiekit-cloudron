@@ -73,7 +73,7 @@ export SITE_ME="${CLOUDRON_APP_ORIGIN}"
 echo "==> Setting permissions"
 chown -R cloudron:cloudron /app/data
 
-# Build Eleventy site
+# Build Eleventy site initially
 echo "==> Building Eleventy site"
 cd /app/data/eleventy
 gosu cloudron:cloudron /app/code/node_modules/.bin/eleventy --output=/app/data/site || {
@@ -81,6 +81,10 @@ gosu cloudron:cloudron /app/code/node_modules/.bin/eleventy --output=/app/data/s
     mkdir -p /app/data/site
     echo "<html><body><h1>Blog coming soon</h1><p>Create your first post at <a href='/admin'>/admin</a></p></body></html>" > /app/data/site/index.html
 }
+
+# Start Eleventy in watch mode to rebuild on content changes
+echo "==> Starting Eleventy watcher for auto-rebuild"
+gosu cloudron:cloudron /app/code/node_modules/.bin/eleventy --watch --output=/app/data/site &
 
 # Setup nginx
 cp /app/pkg/nginx.conf /run/nginx.conf
