@@ -13,9 +13,17 @@ title: Home
       <h2><a class="p-name u-url" href="{{ post.url }}">{{ post.data.title }}</a></h2>
       {% endif %}
       <div class="post-meta">
+        {% if post.data.title %}
         <time class="dt-published" datetime="{{ post.date.toISOString() }}">
           {{ post.date | dateDisplay }}
         </time>
+        {% else %}
+        <a class="u-url" href="{{ post.url }}">
+          <time class="dt-published" datetime="{{ post.date.toISOString() }}">
+            {{ post.date | dateDisplay }}
+          </time>
+        </a>
+        {% endif %}
         {% if post.data.category %}
         <span class="post-categories">
           {% for cat in post.data.category %}

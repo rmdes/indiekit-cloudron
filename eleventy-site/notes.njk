@@ -10,9 +10,11 @@ permalink: /notes/
   {% for post in collections.notes %}
   <li class="h-entry">
     <div class="post-meta">
-      <time class="dt-published" datetime="{{ post.date.toISOString() }}">
-        {{ post.date | dateDisplay }}
-      </time>
+      <a class="u-url" href="{{ post.url }}">
+        <time class="dt-published" datetime="{{ post.date.toISOString() }}">
+          {{ post.date | dateDisplay }}
+        </time>
+      </a>
     </div>
     <div class="e-content">{{ post.templateContent | safe }}</div>
   </li>

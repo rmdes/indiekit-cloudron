@@ -17,46 +17,47 @@ module.exports = function (eleventyConfig) {
   });
 
   // Collections for different post types
+  // Note: content path is content/content/ due to symlink structure
   eleventyConfig.addCollection("posts", function (collectionApi) {
     return collectionApi
-      .getFilteredByGlob("content/posts/**/*.md")
+      .getFilteredByGlob("content/content/posts/**/*.md")
       .sort((a, b) => b.date - a.date);
   });
 
   eleventyConfig.addCollection("notes", function (collectionApi) {
     return collectionApi
-      .getFilteredByGlob("content/notes/**/*.md")
+      .getFilteredByGlob("content/content/notes/**/*.md")
       .sort((a, b) => b.date - a.date);
   });
 
   eleventyConfig.addCollection("articles", function (collectionApi) {
     return collectionApi
-      .getFilteredByGlob("content/articles/**/*.md")
+      .getFilteredByGlob("content/content/articles/**/*.md")
       .sort((a, b) => b.date - a.date);
   });
 
   eleventyConfig.addCollection("bookmarks", function (collectionApi) {
     return collectionApi
-      .getFilteredByGlob("content/bookmarks/**/*.md")
+      .getFilteredByGlob("content/content/bookmarks/**/*.md")
       .sort((a, b) => b.date - a.date);
   });
 
   eleventyConfig.addCollection("photos", function (collectionApi) {
     return collectionApi
-      .getFilteredByGlob("content/photos/**/*.md")
+      .getFilteredByGlob("content/content/photos/**/*.md")
       .sort((a, b) => b.date - a.date);
   });
 
   eleventyConfig.addCollection("likes", function (collectionApi) {
     return collectionApi
-      .getFilteredByGlob("content/likes/**/*.md")
+      .getFilteredByGlob("content/content/likes/**/*.md")
       .sort((a, b) => b.date - a.date);
   });
 
   // All content combined for homepage feed
   eleventyConfig.addCollection("feed", function (collectionApi) {
     return collectionApi
-      .getFilteredByGlob("content/**/*.md")
+      .getFilteredByGlob("content/content/**/*.md")
       .sort((a, b) => b.date - a.date)
       .slice(0, 20);
   });
