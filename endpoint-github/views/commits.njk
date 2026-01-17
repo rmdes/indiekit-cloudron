@@ -1,0 +1,21 @@
+{% extends "document.njk" %}
+
+{% block content %}
+  {% if error %}
+    {{ prose({ text: error.message }) }}
+  {% elif commits.length > 0 %}
+    <ul class="github-list">
+      {% for commit in commits %}
+      <li class="github-list__item">
+        <code class="github-sha"><a href="{{ commit.url }}" target="_blank" rel="noopener">{{ commit.sha }}</a></code>
+        <span class="github-commit__message">{{ commit.message }}</span>
+        <small class="github-meta">
+          <a href="{{ commit.repoUrl }}" target="_blank" rel="noopener">{{ commit.repo }}</a>
+        </small>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    {{ prose({ text: __("github.commits.none") }) }}
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,13 @@
+{% call widget({
+  title: __("github.title"),
+  image: "/assets/" + plugin.id + "/icon.svg"
+}) %}
+  <p class="prose">{{ __("github.widget.description") }}</p>
+  <div class="button-grid">
+    {{ button({
+      classes: "button--secondary-on-offset",
+      href: application.githubEndpoint or "/github",
+      text: icon("github") + __("github.widget.view")
+    }) }}
+  </div>
+{% endcall %}

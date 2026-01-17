@@ -1,0 +1,98 @@
+{% extends "document.njk" %}
+
+{% block content %}
+  {% if error %}
+    {{ prose({ text: error.message }) }}
+  {% else %}
+    {% if user %}
+    <div class="github-profile">
+      <img src="{{ user.avatar_url }}" alt="{{ user.login }}" class="github-profile__avatar" width="64" height="64">
+      <div class="github-profile__info">
+        <strong>{{ user.name or user.login }}</strong>
+        {% if user.bio %}
+        <p>{{ user.bio }}</p>
+        {% endif %}
+        <a href="{{ user.html_url }}" class="github-profile__link" target="_blank" rel="noopener">@{{ user.login }}</a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% call section({
+      title: __("github.commits.title"),
+      actions: [{
+        href: mountPath + "/commits",
+        text: __("github.viewAll")
+      }]
+    }) %}
+      {% if commits.length > 0 %}
+      <ul class="github-list">
+        {% for commit in commits %}
+        <li class="github-list__item">
+          <code class="github-sha"><a href="{{ commit.url }}" target="_blank" rel="noopener">{{ commit.sha }}</a></code>
+          <span class="github-commit__message">{{ commit.message }}</span>
+          <small class="github-meta">
+            <a href="{{ commit.repoUrl }}" target="_blank" rel="noopener">{{ commit.repo }}</a>
+          </small>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      {{ prose({ text: __("github.commits.none") }) }}
+      {% endif %}
+    {% endcall %}
+
+    {% call section({
+      title: __("github.stars.title"),
+      actions: [{
+        href: mountPath + "/stars",
+        text: __("github.viewAll")
+      }]
+    }) %}
+      {% if stars.length > 0 %}
+      <ul class="github-list github-list--grid">
+        {% for star in stars %}
+        <li class="github-list__item github-star">
+          <a href="{{ star.url }}" class="github-star__name" target="_blank" rel="noopener">{{ star.name }}</a>
+          {% if star.description %}
+          <p class="github-star__desc">{{ star.description }}</p>
+          {% endif %}
+          <small class="github-meta">
+            {% if star.language %}
+            <span class="github-lang">{{ star.language }}</span>
+            {% endif %}
+            <span class="github-star__count">{{ star.stars }} stars</span>
+          </small>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      {{ prose({ text: __("github.stars.none") }) }}
+      {% endif %}
+    {% endcall %}
+
+    {% if contributions.length > 0 %}
+    {% call section({
+      title: __("github.contributions.title"),
+      actions: [{
+        href: mountPath + "/contributions",
+        text: __("github.viewAll")
+      }]
+    }) %}
+      <ul class="github-list">
+        {% for item in contributions %}
+        <li class="github-list__item">
+          {{ badge({
+            color: "green" if item.type === "pr" else "blue",
+            text: "PR" if item.type === "pr" else "Issue"
+          }) }}
+          <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>
+          <small class="github-meta">
+            <a href="{{ item.repoUrl }}" target="_blank" rel="noopener">{{ item.repo }}#{{ item.number }}</a>
+          </small>
+        </li>
+        {% endfor %}
+      </ul>
+    {% endcall %}
+    {% endif %}
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "document.njk" %}
+
+{% block content %}
+  {% if error %}
+    {{ prose({ text: error.message }) }}
+  {% elif stars.length > 0 %}
+    <ul class="github-list github-list--grid">
+      {% for star in stars %}
+      <li class="github-list__item github-star">
+        <a href="{{ star.url }}" class="github-star__name" target="_blank" rel="noopener">{{ star.name }}</a>
+        {% if star.description %}
+        <p class="github-star__desc">{{ star.description }}</p>
+        {% endif %}
+        <small class="github-meta">
+          {% if star.language %}
+          <span class="github-lang">{{ star.language }}</span>
+          {% endif %}
+          <span class="github-star__count">{{ star.stars }} stars</span>
+        </small>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    {{ prose({ text: __("github.stars.none") }) }}
+  {% endif %}
+{% endblock %}

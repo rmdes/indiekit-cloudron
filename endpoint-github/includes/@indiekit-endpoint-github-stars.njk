@@ -1,0 +1,11 @@
+{# Stars partial for embedding in other templates #}
+{% if stars and stars.length > 0 %}
+<ul class="github-list github-list--compact">
+  {% for star in stars | slice(0, 5) %}
+  <li class="github-list__item">
+    <a href="{{ star.url }}" target="_blank" rel="noopener">{{ star.name }}</a>
+    <small class="github-meta">{{ star.stars }} stars</small>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

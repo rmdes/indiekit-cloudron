@@ -24,7 +24,6 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/syndicator-mastodon \
         @indiekit/syndicator-bluesky \
         @indiekit/endpoint-json-feed \
-        @indiekit/endpoint-github \
         @indiekit/post-type-article \
         @indiekit/post-type-audio \
         @indiekit/post-type-bookmark \
@@ -37,6 +36,10 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-repost \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video
+
+# Copy and install local endpoint-github plugin
+COPY endpoint-github /app/code/endpoint-github
+RUN cd /app/code && gosu cloudron:cloudron npm install ./endpoint-github
 
 ENV NODE_ENV=production
 

@@ -1,0 +1,30 @@
+{
+  "github": {
+    "title": "GitHub",
+    "activity": "GitHub activity",
+    "viewAll": "View all",
+    "error": {
+      "noUsername": "No GitHub username configured. Add a username in your Indiekit configuration."
+    },
+    "commits": {
+      "title": "Recent commits",
+      "none": "No recent commits"
+    },
+    "stars": {
+      "title": "Recently starred",
+      "none": "No starred repositories"
+    },
+    "contributions": {
+      "title": "PRs & Issues",
+      "none": "No recent contributions"
+    },
+    "activity": {
+      "title": "Activity on my repos",
+      "none": "No recent activity from others"
+    },
+    "widget": {
+      "description": "View your GitHub activity, commits, stars, and contributions.",
+      "view": "View activity"
+    }
+  }
+}
