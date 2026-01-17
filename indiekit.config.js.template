@@ -66,6 +66,6 @@ export default {
   // BLUESKY: Add BLUESKY_PASSWORD to env.sh, then uncomment:
   // ============================================================
   // "@indiekit/syndicator-bluesky": {
-  //   handle: "rmdes.bsky.social",
+  //   handle: "rmendes.net",
   // },
 };
