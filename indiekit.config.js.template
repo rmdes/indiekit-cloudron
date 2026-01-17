@@ -1,8 +1,9 @@
 /**
  * Indiekit configuration for Cloudron
  *
- * Edit this file to configure your publication.
- * Secrets should be stored in /app/data/config/env.sh
+ * FIRST RUN: This minimal config lets Indiekit start.
+ * After the app is running, edit this file and /app/data/config/env.sh
+ * to add your GitHub store and syndicators.
  *
  * Documentation: https://getindiekit.com/configuration
  */
@@ -28,12 +29,13 @@ export default {
     categories: ["blog", "notes", "links", "photos"],
   },
 
-  // Plugins to load
+  // Plugins to load - starting with minimal set
+  // Uncomment store and syndicators after setting tokens in /app/data/config/env.sh
   plugins: [
     "@indiekit/preset-hugo",
-    "@indiekit/store-github",
-    "@indiekit/syndicator-mastodon",
-    "@indiekit/syndicator-bluesky",
+    // "@indiekit/store-github",        // Uncomment after setting GITHUB_TOKEN
+    // "@indiekit/syndicator-mastodon", // Uncomment after setting MASTODON_ACCESS_TOKEN
+    // "@indiekit/syndicator-bluesky",  // Uncomment after setting BLUESKY_PASSWORD
     "@indiekit/endpoint-json-feed",
     "@indiekit/post-type-article",
     "@indiekit/post-type-note",
@@ -43,24 +45,29 @@ export default {
     "@indiekit/post-type-like",
   ],
 
-  // GitHub store configuration
-  // Token is read from GITHUB_TOKEN env var (set in /app/data/config/env.sh)
-  "@indiekit/store-github": {
-    user: "rmdes",
-    repo: "rmdes-static-hugo",
-    branch: "main",
-  },
+  // ============================================================
+  // STEP 1: Add your GITHUB_TOKEN to /app/data/config/env.sh
+  // STEP 2: Uncomment "@indiekit/store-github" in plugins above
+  // STEP 3: Uncomment this config block:
+  // ============================================================
+  // "@indiekit/store-github": {
+  //   user: "rmdes",
+  //   repo: "rmdes-static-hugo",
+  //   branch: "main",
+  // },
 
-  // Mastodon syndicator
-  // Access token is read from MASTODON_ACCESS_TOKEN env var
-  "@indiekit/syndicator-mastodon": {
-    url: "https://mstdn.social",
-    user: "rmdes",
-  },
+  // ============================================================
+  // MASTODON: Add MASTODON_ACCESS_TOKEN to env.sh, then uncomment:
+  // ============================================================
+  // "@indiekit/syndicator-mastodon": {
+  //   url: "https://mstdn.social",
+  //   user: "rmdes",
+  // },
 
-  // Bluesky syndicator
-  // Password is read from BLUESKY_PASSWORD env var
-  "@indiekit/syndicator-bluesky": {
-    handle: "rmdes.bsky.social",
-  },
+  // ============================================================
+  // BLUESKY: Add BLUESKY_PASSWORD to env.sh, then uncomment:
+  // ============================================================
+  // "@indiekit/syndicator-bluesky": {
+  //   handle: "rmdes.bsky.social",
+  // },
 };
