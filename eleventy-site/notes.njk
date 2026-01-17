@@ -1,0 +1,23 @@
+---
+layout: layouts/base.njk
+title: Notes
+permalink: /notes/
+---
+<h1>Notes</h1>
+
+{% if collections.notes.length > 0 %}
+<ul class="post-list">
+  {% for post in collections.notes %}
+  <li class="h-entry">
+    <div class="post-meta">
+      <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+        {{ post.date | dateDisplay }}
+      </time>
+    </div>
+    <div class="e-content">{{ post.templateContent | safe }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No notes yet.</p>
+{% endif %}

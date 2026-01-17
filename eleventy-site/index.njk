@@ -1,0 +1,44 @@
+---
+layout: layouts/base.njk
+title: Home
+---
+<div class="h-feed">
+  <h1 class="p-name visually-hidden">{{ site.name }}</h1>
+
+  {% if collections.feed.length > 0 %}
+  <ul class="post-list">
+    {% for post in collections.feed %}
+    <li class="h-entry">
+      {% if post.data.title %}
+      <h2><a class="p-name u-url" href="{{ post.url }}">{{ post.data.title }}</a></h2>
+      {% endif %}
+      <div class="post-meta">
+        <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+          {{ post.date | dateDisplay }}
+        </time>
+        {% if post.data.category %}
+        <span class="post-categories">
+          {% for cat in post.data.category %}
+          <span class="p-category">{{ cat }}</span>
+          {% endfor %}
+        </span>
+        {% endif %}
+      </div>
+      {% if post.data.title %}
+      <p class="post-excerpt p-summary">{{ post.templateContent | striptags | truncate(200) }}</p>
+      {% else %}
+      <div class="e-content">{{ post.templateContent | safe }}</div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No posts yet. Create your first post using a Micropub client!</p>
+  <p>Some popular Micropub clients:</p>
+  <ul>
+    <li><a href="https://quill.p3k.io">Quill</a> - Web-based</li>
+    <li><a href="https://indiepass.app">IndiePass</a> - Mobile app</li>
+    <li><a href="https://micropublish.net">Micropublish</a> - Web-based</li>
+  </ul>
+  {% endif %}
+</div>

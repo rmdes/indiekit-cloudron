@@ -1,0 +1,23 @@
+---
+layout: layouts/base.njk
+title: Photos
+permalink: /photos/
+---
+<h1>Photos</h1>
+
+{% if collections.photos.length > 0 %}
+<ul class="post-list">
+  {% for post in collections.photos %}
+  <li class="h-entry">
+    <div class="post-meta">
+      <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+        {{ post.date | dateDisplay }}
+      </time>
+    </div>
+    <div class="e-content">{{ post.templateContent | safe }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No photos yet.</p>
+{% endif %}

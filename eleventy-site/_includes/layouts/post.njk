@@ -1,0 +1,54 @@
+---
+layout: layouts/base.njk
+---
+<article class="h-entry post">
+  {% if title %}
+  <h1 class="p-name">{{ title }}</h1>
+  {% endif %}
+
+  <div class="post-meta">
+    <time class="dt-published" datetime="{{ date | date: '%Y-%m-%dT%H:%M:%S' }}">
+      {{ date | dateDisplay }}
+    </time>
+    {% if category %}
+    <span class="post-categories">
+      {% for cat in category %}
+      <a href="/categories/{{ cat | slug }}/" class="p-category">{{ cat }}</a>
+      {% endfor %}
+    </span>
+    {% endif %}
+  </div>
+
+  <div class="e-content">
+    {{ content | safe }}
+  </div>
+
+  {% if bookmark_of or like_of or repost_of or in_reply_to %}
+  <div class="post-context">
+    {% if bookmark_of %}
+    <p>Bookmarked: <a class="u-bookmark-of" href="{{ bookmark_of }}">{{ bookmark_of }}</a></p>
+    {% endif %}
+    {% if like_of %}
+    <p>Liked: <a class="u-like-of" href="{{ like_of }}">{{ like_of }}</a></p>
+    {% endif %}
+    {% if repost_of %}
+    <p>Reposted: <a class="u-repost-of" href="{{ repost_of }}">{{ repost_of }}</a></p>
+    {% endif %}
+    {% if in_reply_to %}
+    <p>In reply to: <a class="u-in-reply-to" href="{{ in_reply_to }}">{{ in_reply_to }}</a></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if syndication %}
+  <div class="post-syndication">
+    <p>Also posted on:
+    {% for url in syndication %}
+      <a class="u-syndication" href="{{ url }}">{{ url | replace("https://", "") | truncate(30) }}</a>{% if not loop.last %}, {% endif %}
+    {% endfor %}
+    </p>
+  </div>
+  {% endif %}
+
+  <a class="u-url" href="{{ page.url }}" hidden>Permalink</a>
+</article>

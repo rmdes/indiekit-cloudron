@@ -1,0 +1,24 @@
+---
+layout: layouts/base.njk
+title: Articles
+permalink: /articles/
+---
+<h1>Articles</h1>
+
+{% if collections.articles.length > 0 %}
+<ul class="post-list">
+  {% for post in collections.articles %}
+  <li class="h-entry">
+    <h2><a class="p-name u-url" href="{{ post.url }}">{{ post.data.title | default("Untitled") }}</a></h2>
+    <div class="post-meta">
+      <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+        {{ post.date | dateDisplay }}
+      </time>
+    </div>
+    <p class="post-excerpt p-summary">{{ post.templateContent | striptags | truncate(200) }}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No articles yet.</p>
+{% endif %}

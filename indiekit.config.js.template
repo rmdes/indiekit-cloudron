@@ -6,6 +6,7 @@
 export default {
   application: {
     mongodbUrl: process.env.MONGODB_URL,
+    url: process.env.CLOUDRON_APP_URL,
     name: "Indiekit",
     locale: "en",
     timeZone: "Europe/London",
@@ -17,7 +18,6 @@ export default {
   },
 
   plugins: [
-    "@indiekit/preset-hugo",
     "@indiekit/preset-eleventy",
     "@indiekit/store-file-system",
     "@indiekit/syndicator-mastodon",

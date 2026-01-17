@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=2
+ARG CACHE_BUST=5
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -46,8 +46,14 @@ RUN chown -R cloudron:cloudron /app/code && \
 COPY endpoint-github /app/code/endpoint-github
 RUN cd /app/code && gosu cloudron:cloudron npm install ./endpoint-github
 
+# Install Eleventy for blog generation
+RUN cd /app/code && gosu cloudron:cloudron npm install @11ty/eleventy
+
 ENV NODE_ENV=production
 
-COPY start.sh indiekit.config.js.template /app/pkg/
+# Copy Eleventy site template
+COPY eleventy-site /app/pkg/eleventy-site
+
+COPY start.sh indiekit.config.js.template nginx.conf /app/pkg/
 
 CMD [ "/app/pkg/start.sh" ]

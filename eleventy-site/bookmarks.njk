@@ -1,0 +1,29 @@
+---
+layout: layouts/base.njk
+title: Bookmarks
+permalink: /bookmarks/
+---
+<h1>Bookmarks</h1>
+
+{% if collections.bookmarks.length > 0 %}
+<ul class="post-list">
+  {% for post in collections.bookmarks %}
+  <li class="h-entry">
+    {% if post.data.title %}
+    <h2><a class="p-name u-url" href="{{ post.url }}">{{ post.data.title }}</a></h2>
+    {% endif %}
+    <div class="post-meta">
+      <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+        {{ post.date | dateDisplay }}
+      </time>
+    </div>
+    {% if post.data.bookmark_of %}
+    <p><a class="u-bookmark-of" href="{{ post.data.bookmark_of }}">{{ post.data.bookmark_of }}</a></p>
+    {% endif %}
+    <div class="e-content">{{ post.templateContent | safe }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>No bookmarks yet.</p>
+{% endif %}
