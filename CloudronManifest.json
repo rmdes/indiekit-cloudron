@@ -1,0 +1,28 @@
+{
+  "id": "com.rmendes.indiekit",
+  "title": "Indiekit",
+  "author": "Paul Robert Lloyd",
+  "description": "The little Node.js server with all the pieces needed to share your content with the open, independent web.",
+  "tagline": "IndieWeb publishing server",
+  "version": "1.0.0",
+  "upstreamVersion": "1.0.0-beta.25",
+  "healthCheckPath": "/",
+  "httpPort": 3000,
+  "addons": {
+    "localstorage": {},
+    "mongodb": {},
+    "sendmail": {}
+  },
+  "manifestVersion": 2,
+  "minBoxVersion": "7.4.0",
+  "website": "https://getindiekit.com",
+  "contactEmail": "hello@rmendes.net",
+  "icon": "file://logo.png",
+  "tags": [
+    "indieweb",
+    "micropub",
+    "blog",
+    "publishing",
+    "cms"
+  ]
+}

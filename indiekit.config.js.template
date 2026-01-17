@@ -1,0 +1,66 @@
+/**
+ * Indiekit configuration for Cloudron
+ *
+ * Edit this file to configure your publication.
+ * Secrets should be stored in /app/data/config/env.sh
+ *
+ * Documentation: https://getindiekit.com/configuration
+ */
+
+export default {
+  application: {
+    // MongoDB connection (provided by Cloudron via MONGODB_URL)
+    mongodbUrl: process.env.MONGODB_URL,
+
+    // Your Indiekit instance name
+    name: "My Indiekit",
+
+    // Locale and timezone
+    locale: "en",
+    timeZone: "Europe/London",
+  },
+
+  publication: {
+    // REQUIRED: Your website URL (change this!)
+    me: "https://rmendes.net",
+
+    // Categories for your posts
+    categories: ["blog", "notes", "links", "photos"],
+  },
+
+  // Plugins to load
+  plugins: [
+    "@indiekit/preset-hugo",
+    "@indiekit/store-github",
+    "@indiekit/syndicator-mastodon",
+    "@indiekit/syndicator-bluesky",
+    "@indiekit/endpoint-json-feed",
+    "@indiekit/post-type-article",
+    "@indiekit/post-type-note",
+    "@indiekit/post-type-photo",
+    "@indiekit/post-type-bookmark",
+    "@indiekit/post-type-reply",
+    "@indiekit/post-type-like",
+  ],
+
+  // GitHub store configuration
+  // Token is read from GITHUB_TOKEN env var (set in /app/data/config/env.sh)
+  "@indiekit/store-github": {
+    user: "rmdes",
+    repo: "rmdes-static-hugo",
+    branch: "main",
+  },
+
+  // Mastodon syndicator
+  // Access token is read from MASTODON_ACCESS_TOKEN env var
+  "@indiekit/syndicator-mastodon": {
+    url: "https://mstdn.social",
+    user: "rmdes",
+  },
+
+  // Bluesky syndicator
+  // Password is read from BLUESKY_PASSWORD env var
+  "@indiekit/syndicator-bluesky": {
+    handle: "rmdes.bsky.social",
+  },
+};
