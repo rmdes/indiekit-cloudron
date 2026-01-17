@@ -35,6 +35,12 @@ source /app/data/config/env.sh
 export MONGODB_URL="${CLOUDRON_MONGODB_URL}"
 export PORT=3000
 
+# Generate and persist SECRET if not exists (used for JWT signing)
+if [[ ! -f /app/data/config/.secret ]]; then
+    openssl rand -hex 32 > /app/data/config/.secret
+fi
+export SECRET="$(cat /app/data/config/.secret)"
+
 # App URL from Cloudron
 export CLOUDRON_APP_URL="${CLOUDRON_APP_ORIGIN}"
 
