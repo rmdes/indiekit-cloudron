@@ -22,7 +22,7 @@ export default {
   },
 
   publication: {
-    // REQUIRED: Your website URL (change this!)
+    // Your website URL
     me: "https://rmendes.net",
 
     // Categories for your posts
@@ -46,13 +46,11 @@ export default {
   ],
 
   // ============================================================
-  // STEP 1: Add your GITHUB_TOKEN to /app/data/config/env.sh
-  // STEP 2: Uncomment "@indiekit/store-github" in plugins above
-  // STEP 3: Uncomment this config block:
+  // GITHUB STORE: Set GITHUB_TOKEN in env.sh, then uncomment and configure:
   // ============================================================
   // "@indiekit/store-github": {
-  //   user: "rmdes",
-  //   repo: "rmdes-static-hugo",
+  //   user: "YOUR_GITHUB_USERNAME",
+  //   repo: "YOUR_REPO_NAME",
   //   branch: "main",
   // },
 
