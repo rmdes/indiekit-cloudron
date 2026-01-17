@@ -27,6 +27,8 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/syndicator-mastodon \
         @indiekit/syndicator-bluesky \
         @indiekit/endpoint-json-feed \
+        @indiekit/endpoint-webmention-io \
+        @indiekit/preset-eleventy \
         @indiekit/post-type-article \
         @indiekit/post-type-audio \
         @indiekit/post-type-bookmark \
