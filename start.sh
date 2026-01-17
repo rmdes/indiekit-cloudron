@@ -15,7 +15,10 @@ fi
 if [[ ! -f /app/data/config/env.sh ]]; then
     echo "==> Creating env.sh for syndicator tokens"
     cat > /app/data/config/env.sh <<'ENVEOF'
-# Syndicator tokens - add your tokens here and restart the app
+# Add your tokens here and restart the app
+
+# GitHub token (optional, for /github endpoint - get from Settings > Developer settings > Personal access tokens)
+export GITHUB_TOKEN=""
 
 # Bluesky app password (get from Settings > App Passwords)
 export BLUESKY_PASSWORD=""

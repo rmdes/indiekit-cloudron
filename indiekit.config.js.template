@@ -22,6 +22,7 @@ export default {
     "@indiekit/syndicator-mastodon",
     "@indiekit/syndicator-bluesky",
     "@indiekit/endpoint-json-feed",
+    "@indiekit/endpoint-github",
     "@indiekit/post-type-article",
     "@indiekit/post-type-note",
     "@indiekit/post-type-photo",
@@ -42,5 +43,14 @@ export default {
 
   "@indiekit/syndicator-bluesky": {
     handle: "rmendes.net",
+  },
+
+  // GitHub activity endpoint - accessible at /github
+  "@indiekit/endpoint-github": {
+    username: "rmdes",
+    token: process.env.GITHUB_TOKEN,
+    cacheTtl: 900_000, // 15 minutes
+    limits: { commits: 10, stars: 20 },
+    repos: [],
   },
 };

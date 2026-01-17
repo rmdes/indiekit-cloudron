@@ -24,6 +24,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/syndicator-mastodon \
         @indiekit/syndicator-bluesky \
         @indiekit/endpoint-json-feed \
+        @indiekit/endpoint-github \
         @indiekit/post-type-article \
         @indiekit/post-type-note \
         @indiekit/post-type-photo \
