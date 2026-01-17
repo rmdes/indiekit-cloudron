@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=8
+ARG CACHE_BUST=9
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -50,6 +50,9 @@ RUN cd /app/code && gosu cloudron:cloudron npm install ./endpoint-github
 RUN cd /app/code && gosu cloudron:cloudron npm install @11ty/eleventy
 
 ENV NODE_ENV=production
+
+# Force cache invalidation for templates (increment CACHE_BUST at top to trigger)
+RUN echo "Build: ${CACHE_BUST}"
 
 # Copy Eleventy site template
 COPY eleventy-site /app/pkg/eleventy-site
