@@ -20,9 +20,10 @@ if [[ ! -f /app/data/config/env.sh ]]; then
 # PASSWORD_SECRET - REQUIRED after first run
 # 1. Visit your Indiekit URL, you'll see a "New password" page
 # 2. Create a password
-# 3. Copy the PASSWORD_SECRET hash shown and paste it below
+# 3. Copy the PASSWORD_SECRET hash and paste it below IN SINGLE QUOTES
 # 4. Restart the app (cloudron restart)
-export PASSWORD_SECRET=""
+# IMPORTANT: Use single quotes because the hash contains $ characters!
+export PASSWORD_SECRET='paste-your-hash-here'
 
 # GitHub token (optional, for /github endpoint)
 export GITHUB_TOKEN=""
