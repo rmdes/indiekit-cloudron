@@ -7,7 +7,7 @@ layout: layouts/base.njk
   {% endif %}
 
   <div class="post-meta">
-    <time class="dt-published" datetime="{{ date | date: '%Y-%m-%dT%H:%M:%S' }}">
+    <time class="dt-published" datetime="{{ date.toISOString() }}">
       {{ date | dateDisplay }}
     </time>
     {% if category %}

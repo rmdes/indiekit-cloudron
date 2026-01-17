@@ -9,9 +9,9 @@ permalink: /articles/
 <ul class="post-list">
   {% for post in collections.articles %}
   <li class="h-entry">
-    <h2><a class="p-name u-url" href="{{ post.url }}">{{ post.data.title | default("Untitled") }}</a></h2>
+    <h2><a class="p-name u-url" href="{{ post.url }}">{{ post.data.title or "Untitled" }}</a></h2>
     <div class="post-meta">
-      <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+      <time class="dt-published" datetime="{{ post.date.toISOString() }}">
         {{ post.date | dateDisplay }}
       </time>
     </div>

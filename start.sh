@@ -82,8 +82,9 @@ gosu cloudron:cloudron /app/code/node_modules/.bin/eleventy --output=/app/data/s
     echo "<html><body><h1>Blog coming soon</h1><p>Create your first post at <a href='/admin'>/admin</a></p></body></html>" > /app/data/site/index.html
 }
 
-# Copy nginx config
+# Setup nginx
 cp /app/pkg/nginx.conf /run/nginx.conf
+mkdir -p /run/nginx-client-body /run/nginx-proxy /run/nginx-fastcgi /run/nginx-uwsgi /run/nginx-scgi
 
 echo "==> Starting nginx on port 3000"
 nginx -c /run/nginx.conf &

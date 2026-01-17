@@ -10,7 +10,7 @@ permalink: /photos/
   {% for post in collections.photos %}
   <li class="h-entry">
     <div class="post-meta">
-      <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+      <time class="dt-published" datetime="{{ post.date.toISOString() }}">
         {{ post.date | dateDisplay }}
       </time>
     </div>

@@ -13,7 +13,7 @@ title: Home
       <h2><a class="p-name u-url" href="{{ post.url }}">{{ post.data.title }}</a></h2>
       {% endif %}
       <div class="post-meta">
-        <time class="dt-published" datetime="{{ post.date | date: '%Y-%m-%dT%H:%M:%S' }}">
+        <time class="dt-published" datetime="{{ post.date.toISOString() }}">
           {{ post.date | dateDisplay }}
         </time>
         {% if post.data.category %}
