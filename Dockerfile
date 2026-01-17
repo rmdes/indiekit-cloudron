@@ -20,7 +20,7 @@ RUN chown -R cloudron:cloudron /app/code && \
     gosu cloudron:cloudron npm install \
         @indiekit/indiekit@${INDIEKIT_VERSION} \
         @indiekit/preset-hugo \
-        @indiekit/store-github \
+        @indiekit/store-file-system \
         @indiekit/syndicator-mastodon \
         @indiekit/syndicator-bluesky \
         @indiekit/endpoint-json-feed \
