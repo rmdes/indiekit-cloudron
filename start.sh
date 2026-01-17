@@ -17,7 +17,14 @@ if [[ ! -f /app/data/config/env.sh ]]; then
     cat > /app/data/config/env.sh <<'ENVEOF'
 # Add your tokens here and restart the app
 
-# GitHub token (optional, for /github endpoint - get from Settings > Developer settings > Personal access tokens)
+# PASSWORD_SECRET - REQUIRED after first run
+# 1. Visit your Indiekit URL, you'll see a "New password" page
+# 2. Create a password
+# 3. Copy the PASSWORD_SECRET hash shown and paste it below
+# 4. Restart the app (cloudron restart)
+export PASSWORD_SECRET=""
+
+# GitHub token (optional, for /github endpoint)
 export GITHUB_TOKEN=""
 
 # Bluesky app password (get from Settings > App Passwords)
