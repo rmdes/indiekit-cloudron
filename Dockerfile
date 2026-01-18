@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=44
+ARG CACHE_BUST=45
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -62,7 +62,8 @@ RUN gosu cloudron:cloudron ./node_modules/.bin/tailwindcss -i css/tailwind.css -
 RUN rm -rf /app/pkg/eleventy-site/content && ln -s /app/data/content /app/pkg/eleventy-site/content && \
     rm -rf /app/pkg/eleventy-site/_site && ln -s /app/data/site /app/pkg/eleventy-site/_site && \
     rm -rf /app/pkg/eleventy-site/images/user && mkdir -p /app/pkg/eleventy-site/images && ln -s /app/data/images /app/pkg/eleventy-site/images/user && \
-    rm -rf /app/pkg/eleventy-site/.cache && ln -s /app/data/cache /app/pkg/eleventy-site/.cache
+    rm -rf /app/pkg/eleventy-site/.cache && ln -s /app/data/cache /app/pkg/eleventy-site/.cache && \
+    ln -s /app/data/uploads /app/pkg/eleventy-site/uploads
 
 ENV NODE_ENV=production
 

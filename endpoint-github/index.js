@@ -4,6 +4,7 @@ import { activityController } from "./lib/controllers/activity.js";
 import { commitsController } from "./lib/controllers/commits.js";
 import { contributionsController } from "./lib/controllers/contributions.js";
 import { dashboardController } from "./lib/controllers/dashboard.js";
+import { featuredController } from "./lib/controllers/featured.js";
 import { starsController } from "./lib/controllers/stars.js";
 
 const router = express.Router();
@@ -62,11 +63,13 @@ export default class GitHubEndpoint {
     router.get("/stars", starsController.get);
     router.get("/contributions", contributionsController.get);
     router.get("/activity", activityController.get);
+    router.get("/featured", featuredController.get);
 
     // JSON API for widgets
     router.get("/api/commits", commitsController.api);
     router.get("/api/stars", starsController.api);
     router.get("/api/activity", activityController.api);
+    router.get("/api/featured", featuredController.api);
 
     return router;
   }
