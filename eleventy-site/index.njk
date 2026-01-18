@@ -26,9 +26,13 @@ title: Home
         {% endif %}
         {% if post.data.category %}
         <span class="post-categories">
+          {% if post.data.category is string %}
+          <span class="p-category">{{ post.data.category }}</span>
+          {% else %}
           {% for cat in post.data.category %}
           <span class="p-category">{{ cat }}</span>
           {% endfor %}
+          {% endif %}
         </span>
         {% endif %}
       </div>
