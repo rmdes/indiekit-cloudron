@@ -15,10 +15,12 @@ export function truncate(text, maxLength = 80) {
  * @returns {Array} - Formatted commits
  */
 export function extractCommits(events) {
+  if (!Array.isArray(events)) return [];
+
   return events
     .filter((event) => event.type === "PushEvent")
     .flatMap((event) =>
-      event.payload.commits.map((commit) => ({
+      (event.payload?.commits || []).map((commit) => ({
         sha: commit.sha.slice(0, 7),
         message: truncate(commit.message.split("\n")[0]),
         url: `https://github.com/${event.repo.name}/commit/${commit.sha}`,
@@ -35,21 +37,23 @@ export function extractCommits(events) {
  * @returns {Array} - Formatted contributions
  */
 export function extractContributions(events) {
+  if (!Array.isArray(events)) return [];
+
   return events
     .filter(
       (event) =>
         (event.type === "PullRequestEvent" || event.type === "IssuesEvent") &&
-        event.payload.action === "opened",
+        event.payload?.action === "opened",
     )
     .map((event) => {
       const item = event.payload.pull_request || event.payload.issue;
       return {
         type: event.type === "PullRequestEvent" ? "pr" : "issue",
-        title: truncate(item.title),
-        url: item.html_url,
+        title: truncate(item?.title),
+        url: item?.html_url,
         repo: event.repo.name,
         repoUrl: `https://github.com/${event.repo.name}`,
-        number: item.number,
+        number: item?.number,
         date: event.created_at,
       };
     });
@@ -61,6 +65,8 @@ export function extractContributions(events) {
  * @returns {Array} - Formatted repos
  */
 export function formatStarred(repos) {
+  if (!Array.isArray(repos)) return [];
+
   return repos.map((repo) => ({
     name: repo.full_name,
     description: truncate(repo.description, 120),
@@ -72,21 +78,47 @@ export function formatStarred(repos) {
 }
 
 /**
+ * Format user's own repositories for display
+ * @param {Array} repos - User repositories
+ * @returns {Array} - Formatted repos
+ */
+export function formatRepos(repos) {
+  if (!Array.isArray(repos)) return [];
+
+  return repos.map((repo) => ({
+    name: repo.name,
+    fullName: repo.full_name,
+    description: truncate(repo.description, 120),
+    url: repo.html_url,
+    stars: repo.stargazers_count,
+    forks: repo.forks_count,
+    language: repo.language,
+    topics: repo.topics?.slice(0, 5) || [],
+    isPrivate: repo.private,
+    isFork: repo.fork,
+    pushedAt: repo.pushed_at,
+    updatedAt: repo.updated_at,
+  }));
+}
+
+/**
  * Extract activity on user's repos from other users
  * @param {Array} events - Repository events
  * @param {string} username - Owner username to exclude
  * @returns {Array} - Formatted activity
  */
 export function extractRepoActivity(events, username) {
+  if (!Array.isArray(events)) return [];
+
   return events
-    .filter((event) => event.actor.login !== username) // Exclude own activity
+    .filter((event) => event.actor?.login !== username) // Exclude own activity
     .map((event) => ({
       type: event.type.replace("Event", "").toLowerCase(),
-      actor: event.actor.login,
-      actorUrl: `https://github.com/${event.actor.login}`,
-      actorAvatar: event.actor.avatar_url,
-      repo: event.repo.name,
-      repoUrl: `https://github.com/${event.repo.name}`,
+      actor: event.actor?.login,
+      actorUrl: `https://github.com/${event.actor?.login}`,
+      actorAvatar: event.actor?.avatar_url,
+      repo: event.repo?.name,
+      repoUrl: `https://github.com/${event.repo?.name}`,
       date: event.created_at,
       detail: getEventDetail(event),
     }));
@@ -106,25 +138,25 @@ function getEventDetail(event) {
       return "forked";
     }
     case "PullRequestEvent": {
-      return `${event.payload.action} PR #${event.payload.number}`;
+      return `${event.payload?.action} PR #${event.payload?.number}`;
     }
     case "IssuesEvent": {
-      return `${event.payload.action} issue #${event.payload.number}`;
+      return `${event.payload?.action} issue #${event.payload?.number}`;
     }
     case "IssueCommentEvent": {
       return "commented";
     }
     case "CreateEvent": {
-      return `created ${event.payload.ref_type}`;
+      return `created ${event.payload?.ref_type}`;
     }
     case "DeleteEvent": {
-      return `deleted ${event.payload.ref_type}`;
+      return `deleted ${event.payload?.ref_type}`;
     }
     case "PushEvent": {
-      return `pushed ${event.payload.size} commit(s)`;
+      return `pushed ${event.payload?.size} commit(s)`;
     }
     default: {
-      return event.type.replace("Event", "").toLowerCase();
+      return event.type?.replace("Event", "").toLowerCase() || "activity";
     }
   }
 }

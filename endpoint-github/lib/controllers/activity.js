@@ -9,7 +9,7 @@ export const activityController = {
   async get(request, response, next) {
     try {
       const { username, token, cacheTtl, limits, repos } =
-        request.githubOptions;
+        request.app.locals.application.githubConfig;
 
       if (!username) {
         return response.render("activity", {
@@ -22,32 +22,46 @@ export const activityController = {
 
       let activity = [];
 
-      if (repos.length > 0) {
-        // Fetch events for specific repos
-        const repoEventPromises = repos.map(async (repoPath) => {
-          const [owner, repo] = repoPath.split("/");
-          try {
-            return await client.getRepoEvents(owner, repo, 30);
-          } catch {
-            return [];
-          }
-        });
+      try {
+        if (repos.length > 0) {
+          // Fetch events for specific repos
+          const repoEventPromises = repos.map(async (repoPath) => {
+            const [owner, repo] = repoPath.split("/");
+            try {
+              return await client.getRepoEvents(owner, repo, 30);
+            } catch {
+              return [];
+            }
+          });
 
-        const repoEvents = await Promise.all(repoEventPromises);
-        const allEvents = repoEvents.flat();
-        activity = utils.extractRepoActivity(allEvents, username);
-      } else {
-        // Use received events (events on user's repos)
-        const events = await client.fetch(
-          `/users/${username}/received_events?per_page=${limits.activity * 2}`,
-        );
-        activity = utils.extractRepoActivity(events, username);
+          const repoEvents = await Promise.all(repoEventPromises);
+          const allEvents = repoEvents.flat();
+          activity = utils.extractRepoActivity(allEvents, username);
+        } else {
+          // Use received events (events on user's repos)
+          const events = await client.fetch(
+            `/users/${username}/received_events?per_page=${limits.activity * 2}`,
+          );
+          activity = utils.extractRepoActivity(events, username);
+        }
+      } catch (apiError) {
+        console.error("GitHub API error:", apiError);
+        return response.render("activity", {
+          title: response.locals.__("github.activity.title"),
+          actions: [],
+          parent: {
+            href: request.baseUrl,
+            text: response.locals.__("github.title"),
+          },
+          error: { message: apiError.message || "Failed to fetch activity" },
+        });
       }
 
       activity = activity.slice(0, limits.activity);
 
       response.render("activity", {
         title: response.locals.__("github.activity.title"),
+        actions: [],
         parent: {
           href: request.baseUrl,
           text: response.locals.__("github.title"),
@@ -64,7 +78,7 @@ export const activityController = {
   async api(request, response, next) {
     try {
       const { username, token, cacheTtl, limits, repos } =
-        request.githubOptions;
+        request.app.locals.application.githubConfig;
 
       if (!username) {
         return response.status(400).json({ error: "No username configured" });
@@ -74,24 +88,30 @@ export const activityController = {
 
       let activity = [];
 
-      if (repos.length > 0) {
-        const repoEventPromises = repos.map(async (repoPath) => {
-          const [owner, repo] = repoPath.split("/");
-          try {
-            return await client.getRepoEvents(owner, repo, 20);
-          } catch {
-            return [];
-          }
-        });
+      try {
+        if (repos.length > 0) {
+          const repoEventPromises = repos.map(async (repoPath) => {
+            const [owner, repo] = repoPath.split("/");
+            try {
+              return await client.getRepoEvents(owner, repo, 20);
+            } catch {
+              return [];
+            }
+          });
 
-        const repoEvents = await Promise.all(repoEventPromises);
-        const allEvents = repoEvents.flat();
-        activity = utils.extractRepoActivity(allEvents, username);
-      } else {
-        const events = await client.fetch(
-          `/users/${username}/received_events?per_page=${limits.activity}`,
-        );
-        activity = utils.extractRepoActivity(events, username);
+          const repoEvents = await Promise.all(repoEventPromises);
+          const allEvents = repoEvents.flat();
+          activity = utils.extractRepoActivity(allEvents, username);
+        } else {
+          const events = await client.fetch(
+            `/users/${username}/received_events?per_page=${limits.activity}`,
+          );
+          activity = utils.extractRepoActivity(events, username);
+        }
+      } catch (apiError) {
+        return response
+          .status(apiError.status || 500)
+          .json({ error: apiError.message });
       }
 
       activity = activity.slice(0, limits.activity);

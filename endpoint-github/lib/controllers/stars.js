@@ -8,7 +8,8 @@ import * as utils from "../utils.js";
 export const starsController = {
   async get(request, response, next) {
     try {
-      const { username, token, cacheTtl, limits } = request.githubOptions;
+      const { username, token, cacheTtl, limits } =
+        request.app.locals.application.githubConfig;
 
       if (!username) {
         return response.render("stars", {
@@ -18,11 +19,28 @@ export const starsController = {
       }
 
       const client = new GitHubClient({ token, cacheTtl });
-      const starred = await client.getUserStarred(username, limits.stars * 2);
+
+      let starred = [];
+      try {
+        starred = await client.getUserStarred(username, limits.stars * 2);
+      } catch (apiError) {
+        console.error("GitHub API error:", apiError);
+        return response.render("stars", {
+          title: response.locals.__("github.stars.title"),
+          actions: [],
+          parent: {
+            href: request.baseUrl,
+            text: response.locals.__("github.title"),
+          },
+          error: { message: apiError.message || "Failed to fetch stars" },
+        });
+      }
+
       const stars = utils.formatStarred(starred);
 
       response.render("stars", {
         title: response.locals.__("github.stars.title"),
+        actions: [],
         parent: {
           href: request.baseUrl,
           text: response.locals.__("github.title"),
@@ -38,14 +56,24 @@ export const starsController = {
 
   async api(request, response, next) {
     try {
-      const { username, token, cacheTtl, limits } = request.githubOptions;
+      const { username, token, cacheTtl, limits } =
+        request.app.locals.application.githubConfig;
 
       if (!username) {
         return response.status(400).json({ error: "No username configured" });
       }
 
       const client = new GitHubClient({ token, cacheTtl });
-      const starred = await client.getUserStarred(username, limits.stars);
+
+      let starred = [];
+      try {
+        starred = await client.getUserStarred(username, limits.stars);
+      } catch (apiError) {
+        return response
+          .status(apiError.status || 500)
+          .json({ error: apiError.message });
+      }
+
       const stars = utils.formatStarred(starred);
 
       response.json({ stars });

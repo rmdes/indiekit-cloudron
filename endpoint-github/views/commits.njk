@@ -3,7 +3,7 @@
 {% block content %}
   {% if error %}
     {{ prose({ text: error.message }) }}
-  {% elif commits.length > 0 %}
+  {% elif commits and commits.length > 0 %}
     <ul class="github-list">
       {% for commit in commits %}
       <li class="github-list__item">

@@ -6,6 +6,8 @@ import { contributionsController } from "./lib/controllers/contributions.js";
 import { dashboardController } from "./lib/controllers/dashboard.js";
 import { starsController } from "./lib/controllers/stars.js";
 
+const router = express.Router();
+
 const defaults = {
   mountPath: "/github",
   username: "",
@@ -16,8 +18,10 @@ const defaults = {
     stars: 20,
     contributions: 10,
     activity: 20,
+    repos: 10,
   },
-  repos: [], // Empty = all repos, or specify ['owner/repo', ...]
+  repos: [], // Empty = all repos, or specify ['owner/repo', ...] for filtering activity
+  featuredRepos: [], // Repos to showcase with commits, e.g. ['owner/repo', ...]
 };
 
 export default class GitHubEndpoint {
@@ -44,21 +48,12 @@ export default class GitHubEndpoint {
     return {
       url: this.options.mountPath,
       name: "github.activity",
-      iconName: "github",
+      iconName: "syndicate",
       requiresDatabase: false,
     };
   }
 
   get routes() {
-    const router = express.Router();
-    const { options } = this;
-
-    // Inject options into request
-    router.use((request, response, next) => {
-      request.githubOptions = options;
-      next();
-    });
-
     // Dashboard
     router.get("/", dashboardController.get);
 
@@ -78,5 +73,9 @@ export default class GitHubEndpoint {
 
   init(Indiekit) {
     Indiekit.addEndpoint(this);
+
+    // Store GitHub config in application for controller access
+    Indiekit.config.application.githubConfig = this.options;
+    Indiekit.config.application.githubEndpoint = this.mountPath;
   }
 }

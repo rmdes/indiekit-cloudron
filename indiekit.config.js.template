@@ -58,8 +58,12 @@ export default {
     username: "rmdes",
     token: process.env.GITHUB_TOKEN,
     cacheTtl: 900_000,
-    limits: { commits: 10, stars: 20 },
+    limits: { commits: 10, stars: 20, repos: 10 },
     repos: [],
+    featuredRepos: [
+      "osintukraine/tg-archiver",
+      "osintukraine/osint-intelligence-platform",
+    ],
   },
 
   // Webmention.io - get token from https://webmention.io/settings

@@ -8,7 +8,8 @@ import * as utils from "../utils.js";
 export const contributionsController = {
   async get(request, response, next) {
     try {
-      const { username, token, cacheTtl, limits } = request.githubOptions;
+      const { username, token, cacheTtl, limits } =
+        request.app.locals.application.githubConfig;
 
       if (!username) {
         return response.render("contributions", {
@@ -18,13 +19,32 @@ export const contributionsController = {
       }
 
       const client = new GitHubClient({ token, cacheTtl });
-      const events = await client.getUserEvents(username, 100);
+
+      let events = [];
+      try {
+        events = await client.getUserEvents(username, 100);
+      } catch (apiError) {
+        console.error("GitHub API error:", apiError);
+        return response.render("contributions", {
+          title: response.locals.__("github.contributions.title"),
+          actions: [],
+          parent: {
+            href: request.baseUrl,
+            text: response.locals.__("github.title"),
+          },
+          error: {
+            message: apiError.message || "Failed to fetch contributions",
+          },
+        });
+      }
+
       const contributions = utils
         .extractContributions(events)
         .slice(0, limits.contributions * 2);
 
       response.render("contributions", {
         title: response.locals.__("github.contributions.title"),
+        actions: [],
         parent: {
           href: request.baseUrl,
           text: response.locals.__("github.title"),

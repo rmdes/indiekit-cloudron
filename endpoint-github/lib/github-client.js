@@ -52,13 +52,29 @@ export class GitHubClient {
   }
 
   /**
-   * Get user's public events (commits, PRs, issues, etc.)
+   * Get user's events (commits, PRs, issues, etc.)
+   * Uses authenticated endpoint if token available (includes private activity)
    * @param {string} username - GitHub username
    * @param {number} [limit] - Number of events to fetch
    * @returns {Promise<Array>} - User events
    */
   async getUserEvents(username, limit = 30) {
-    return this.fetch(`/users/${username}/events/public?per_page=${limit}`);
+    // Use non-public endpoint when authenticated to include private repo activity
+    const endpoint = this.token
+      ? `/users/${username}/events?per_page=${limit}`
+      : `/users/${username}/events/public?per_page=${limit}`;
+    return this.fetch(endpoint);
+  }
+
+  /**
+   * Get commits for a specific repository
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @param {number} [limit] - Number of commits to fetch
+   * @returns {Promise<Array>} - Repository commits
+   */
+  async getRepoCommits(owner, repo, limit = 10) {
+    return this.fetch(`/repos/${owner}/${repo}/commits?per_page=${limit}`);
   }
 
   /**
@@ -80,6 +96,29 @@ export class GitHubClient {
    */
   async getUser(username) {
     return this.fetch(`/users/${username}`);
+  }
+
+  /**
+   * Get user's repositories
+   * When authenticated, uses /user/repos to include private repos
+   * @param {string} username - GitHub username
+   * @param {number} [limit] - Number of repos to fetch
+   * @param {string} [sort] - Sort by: created, updated, pushed, full_name
+   * @returns {Promise<Array>} - User repositories
+   */
+  async getUserRepos(username, limit = 30, sort = "pushed") {
+    // When authenticated, use /user/repos for private repos access
+    // Then filter by owner to get only the user's repos (not org repos)
+    if (this.token) {
+      const repos = await this.fetch(
+        `/user/repos?per_page=${limit}&sort=${sort}&direction=desc&affiliation=owner`,
+      );
+      return repos;
+    }
+    // Unauthenticated: public repos only
+    return this.fetch(
+      `/users/${username}/repos?per_page=${limit}&sort=${sort}&direction=desc`,
+    );
   }
 
   /**

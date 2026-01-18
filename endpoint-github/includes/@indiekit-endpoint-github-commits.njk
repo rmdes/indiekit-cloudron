@@ -1,11 +1,13 @@
 {# Commits partial for embedding in other templates #}
 {% if commits and commits.length > 0 %}
 <ul class="github-list github-list--compact">
-  {% for commit in commits | slice(0, 5) %}
+  {% for commit in commits %}
+  {% if loop.index <= 5 %}
   <li class="github-list__item">
     <code class="github-sha"><a href="{{ commit.url }}" target="_blank" rel="noopener">{{ commit.sha }}</a></code>
     <span class="github-commit__message">{{ commit.message }}</span>
   </li>
+  {% endif %}
   {% endfor %}
 </ul>
 {% endif %}

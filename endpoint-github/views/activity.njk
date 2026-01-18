@@ -3,7 +3,7 @@
 {% block content %}
   {% if error %}
     {{ prose({ text: error.message }) }}
-  {% elif activity.length > 0 %}
+  {% elif activity and activity.length > 0 %}
     <ul class="github-list">
       {% for item in activity %}
       <li class="github-list__item github-activity">

@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=15
+ARG CACHE_BUST=44
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -17,7 +17,7 @@ RUN apt-get update && \
     apt-get -y install build-essential python3 && \
     rm -rf /var/cache/apt /var/lib/apt/lists
 
-# Install Indiekit and common plugins from npm
+# Install Indiekit and plugins
 ARG INDIEKIT_VERSION=1.0.0-beta.25
 RUN chown -R cloudron:cloudron /app/code && \
     gosu cloudron:cloudron npm install \
@@ -46,17 +46,28 @@ RUN chown -R cloudron:cloudron /app/code && \
 COPY endpoint-github /app/code/endpoint-github
 RUN cd /app/code && gosu cloudron:cloudron npm install ./endpoint-github
 
-# Install Eleventy for blog generation
-RUN cd /app/code && gosu cloudron:cloudron npm install @11ty/eleventy
+# Copy Eleventy site
+COPY eleventy-site /app/pkg/eleventy-site
+RUN chown -R cloudron:cloudron /app/pkg/eleventy-site
+
+# Install Eleventy site dependencies
+WORKDIR /app/pkg/eleventy-site
+RUN gosu cloudron:cloudron npm install
+
+# Build Tailwind CSS
+RUN gosu cloudron:cloudron ./node_modules/.bin/tailwindcss -i css/tailwind.css -o css/style.css --minify
+
+# Create symlinks in Dockerfile (Cloudron pattern: dangling during build, valid at runtime)
+# Like taiga-app: ln -s /app/data/media /app/code/taiga-back/media
+RUN rm -rf /app/pkg/eleventy-site/content && ln -s /app/data/content /app/pkg/eleventy-site/content && \
+    rm -rf /app/pkg/eleventy-site/_site && ln -s /app/data/site /app/pkg/eleventy-site/_site && \
+    rm -rf /app/pkg/eleventy-site/images/user && mkdir -p /app/pkg/eleventy-site/images && ln -s /app/data/images /app/pkg/eleventy-site/images/user && \
+    rm -rf /app/pkg/eleventy-site/.cache && ln -s /app/data/cache /app/pkg/eleventy-site/.cache
 
 ENV NODE_ENV=production
 
-# Force cache invalidation for templates (increment CACHE_BUST at top to trigger)
-RUN echo "Build: ${CACHE_BUST}"
+WORKDIR /app/code
 
-# Copy Eleventy site template
-COPY eleventy-site /app/pkg/eleventy-site
-
-COPY start.sh indiekit.config.js.template nginx.conf /app/pkg/
+COPY start.sh indiekit.config.js.template nginx.conf redirects.map /app/pkg/
 
 CMD [ "/app/pkg/start.sh" ]

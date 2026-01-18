@@ -3,7 +3,7 @@
 {% block content %}
   {% if error %}
     {{ prose({ text: error.message }) }}
-  {% elif stars.length > 0 %}
+  {% elif stars and stars.length > 0 %}
     <ul class="github-list github-list--grid">
       {% for star in stars %}
       <li class="github-list__item github-star">
