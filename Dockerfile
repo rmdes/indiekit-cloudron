@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=45
+ARG CACHE_BUST=102
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -26,6 +26,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/store-file-system \
         @indiekit/syndicator-mastodon \
         @indiekit/syndicator-bluesky \
+        @indiekit/endpoint-syndicate \
         @indiekit/endpoint-json-feed \
         @indiekit/endpoint-webmention-io \
         @indiekit/preset-eleventy \
@@ -40,13 +41,13 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-reply \
         @indiekit/post-type-repost \
         @indiekit/post-type-rsvp \
-        @indiekit/post-type-video
+        @indiekit/post-type-video \
+        @rmdes/indiekit-endpoint-github \
+        @rmdes/indiekit-endpoint-funkwhale \
+        @rmdes/indiekit-endpoint-youtube
 
-# Copy and install local endpoint-github plugin
-COPY endpoint-github /app/code/endpoint-github
-RUN cd /app/code && gosu cloudron:cloudron npm install ./endpoint-github
-
-# Copy Eleventy site
+# Copy Eleventy site (submodule with overrides already applied by Makefile)
+# The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
 COPY eleventy-site /app/pkg/eleventy-site
 RUN chown -R cloudron:cloudron /app/pkg/eleventy-site
 
@@ -69,6 +70,12 @@ ENV NODE_ENV=production
 
 WORKDIR /app/code
 
-COPY start.sh indiekit.config.js.template nginx.conf redirects.map /app/pkg/
+# Copy migrated legacy content to be merged on first run
+COPY migrated-content /app/pkg/migrated-content
+
+# Copy config files
+# Base files are templates in repo, personal overrides applied via Makefile before build
+COPY start.sh indiekit.config.js.template nginx.conf.template /app/pkg/
+COPY indiekit.config.js nginx.conf redirects.map old-blog-redirects.map /app/pkg/
 
 CMD [ "/app/pkg/start.sh" ]

@@ -1,3 +1,53 @@
+# Dependencies
 node_modules/
+
+# Environment & secrets
 .env
+*.env.local
+*.env.*.local
+env.sh
+env.sh.*
+
+# Build artifacts (eleventy-site is a submodule)
+# _site and .cache are in submodule's .gitignore
+
+# User content (populated at runtime)
+migrated-content/
+
+# Personal data overrides (applied during build)
+*.rmendes
+overrides/
+
+# Personal config overrides (applied during Docker build)
+# Base files (nginx.conf, redirects.map) stay in repo as templates
+# .rmendes files override them during build
+nginx.conf.rmendes
+redirects.map.rmendes
+old-blog-redirects.map.rmendes
+
+# Migration scripts (user-specific)
+scripts/
+
+# Personal avatar images can go in overrides/eleventy-site/images/
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Cloudron
+*.tar.gz
+
+# Development files
+CLAUDE.md
+FRONTEND_PLAN.md
+indieweb.txt
