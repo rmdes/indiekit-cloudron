@@ -10,6 +10,10 @@ http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
 
+    # Increase hash bucket size for large redirect maps
+    map_hash_bucket_size 256;
+    map_hash_max_size 16384;
+
     access_log /dev/stdout;
 
     # Use /run for temp files (writable in Cloudron)
@@ -24,9 +28,30 @@ http {
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
 
+    # Map to get correct host without port
+    map $http_x_forwarded_host $proxy_host {
+        default $http_x_forwarded_host;
+        ""      $host;
+    }
+
+    # Legacy URL redirects (optional - populated via redirects.map.rmendes)
+    map $uri $redirect_uri {
+        default "";
+        include /app/pkg/redirects.map;
+    }
+
+    # Legacy URL redirects (optional - populated via old-blog-redirects.map.rmendes)
+    map $uri $old_blog_redirect {
+        default "";
+        include /app/pkg/old-blog-redirects.map;
+    }
+
     server {
         listen 3000;
         server_name _;
+
+        # Use relative redirects (Cloudron handles external URL construction)
+        absolute_redirect off;
 
         # Eleventy static site root
         root /app/data/site;
@@ -35,7 +60,7 @@ http {
         # Indiekit admin and API endpoints - proxy to Indiekit
         location /micropub {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -43,7 +68,7 @@ http {
 
         location /auth {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -51,7 +76,7 @@ http {
 
         location /media {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -60,7 +85,7 @@ http {
 
         location /share {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -68,7 +93,7 @@ http {
 
         location /status {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -76,15 +101,43 @@ http {
 
         location /webmentions {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
         }
 
-        location /github {
+        # Syndication endpoint (triggers POSSE to Mastodon/Bluesky)
+        location /syndicate {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
+        # GitHub API endpoint (Indiekit plugin)
+        location /githubapi {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
+        # Funkwhale API endpoint (Indiekit plugin)
+        location /funkwhaleapi {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
+        # YouTube API endpoint (Indiekit plugin)
+        location /youtubeapi {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -92,7 +145,7 @@ http {
 
         location /session {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -100,7 +153,7 @@ http {
 
         location /posts {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -109,7 +162,7 @@ http {
         # Indiekit create post page
         location /create {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -117,16 +170,7 @@ http {
 
         location /files {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-        }
-
-        # Indiekit JSON feed endpoint
-        location = /feed.json {
-            proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -137,10 +181,10 @@ http {
             return 302 https://$host/session/login?redirect=/dashboard;
         }
 
-        # Indiekit dashboard (proxy root to Indiekit for logged-in users)
+        # Indiekit dashboard
         location = /dashboard {
             proxy_pass http://127.0.0.1:8080/;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -149,14 +193,14 @@ http {
         # Indiekit offline page
         location = /offline {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Forwarded-Proto https;
         }
 
         # Indiekit plugins page (settings)
         location /plugins {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -165,34 +209,34 @@ http {
         # Indiekit service worker and manifest
         location = /serviceworker.js {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Forwarded-Proto https;
         }
 
         location = /app.webmanifest {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Forwarded-Proto https;
         }
 
         # Indiekit client ID endpoint
         location = /id {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Forwarded-Proto https;
         }
 
         # Robots.txt from Indiekit
         location = /robots.txt {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Forwarded-Proto https;
         }
 
         # Well-known endpoints (webfinger, etc.)
         location /.well-known/ {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -201,7 +245,7 @@ http {
         # Indiekit static assets
         location /assets {
             proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $host;
+            proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
@@ -213,6 +257,38 @@ http {
             expires 30d;
             add_header Cache-Control "public, immutable";
         }
+
+        # =================================================================
+        # LEGACY URL REDIRECTS (Examples - customize for your old domain)
+        # =================================================================
+        # These patterns help migrate content from old blog platforms.
+        # Populate redirects.map and old-blog-redirects.map with your mappings.
+
+        # Example: Rewrite old URL format to new Eleventy content paths
+        # /articles/YYYY/MM/DD/slug -> /content/articles/YYYY-MM-DD-slug/
+        rewrite "^/articles/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/articles/$1-$2-$3-$4/" permanent;
+        rewrite "^/notes/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/notes/$1-$2-$3-$4/" permanent;
+        rewrite "^/bookmarks/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/bookmarks/$1-$2-$3-$4/" permanent;
+
+        # Example: Legacy .html URLs (e.g., from micro.blog) - redirect via map
+        # Matches: /YYYY/MM/DD/slug.html
+        location ~ "^/\d{4}/\d{2}/\d{2}/[^/]+\.html$" {
+            if ($redirect_uri != "") {
+                return 301 https://$proxy_host$redirect_uri;
+            }
+            return 404;
+        }
+
+        # Example: Legacy old blog URLs (e.g., from Known/WordPress) - redirect via map
+        # Matches: /YYYY/slug (no month/day, no .html extension)
+        location ~ "^/\d{4}/[^/]+$" {
+            if ($old_blog_redirect != "") {
+                return 301 https://$proxy_host$old_blog_redirect;
+            }
+            return 404;
+        }
+
+        # =================================================================
 
         # Default: serve Eleventy static site
         location / {

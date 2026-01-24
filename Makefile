@@ -25,25 +25,41 @@ theme-update:
 	@echo "    git add eleventy-site && git commit -m 'chore: update theme'"
 
 # Apply personal overrides (from .rmendes files and overrides/ directory)
+# Falls back to .template files if no .rmendes override exists
 .PHONY: prepare
 prepare:
-	@echo "==> Applying personal overrides..."
-	@# Root-level .rmendes files
+	@echo "==> Applying configuration..."
+	@# nginx.conf
 	@if [ -f nginx.conf.rmendes ]; then \
 		echo "    nginx.conf.rmendes -> nginx.conf"; \
 		cp nginx.conf.rmendes nginx.conf; \
+	elif [ -f nginx.conf.template ]; then \
+		echo "    nginx.conf.template -> nginx.conf"; \
+		cp nginx.conf.template nginx.conf; \
 	fi
+	@# redirects.map
 	@if [ -f redirects.map.rmendes ]; then \
 		echo "    redirects.map.rmendes -> redirects.map"; \
 		cp redirects.map.rmendes redirects.map; \
+	elif [ -f redirects.map.template ]; then \
+		echo "    redirects.map.template -> redirects.map"; \
+		cp redirects.map.template redirects.map; \
 	fi
+	@# old-blog-redirects.map
 	@if [ -f old-blog-redirects.map.rmendes ]; then \
 		echo "    old-blog-redirects.map.rmendes -> old-blog-redirects.map"; \
 		cp old-blog-redirects.map.rmendes old-blog-redirects.map; \
+	elif [ -f old-blog-redirects.map.template ]; then \
+		echo "    old-blog-redirects.map.template -> old-blog-redirects.map"; \
+		cp old-blog-redirects.map.template old-blog-redirects.map; \
 	fi
+	@# indiekit.config.js
 	@if [ -f indiekit.config.js.rmendes ]; then \
 		echo "    indiekit.config.js.rmendes -> indiekit.config.js"; \
 		cp indiekit.config.js.rmendes indiekit.config.js; \
+	elif [ -f indiekit.config.js.template ]; then \
+		echo "    indiekit.config.js.template -> indiekit.config.js"; \
+		cp indiekit.config.js.template indiekit.config.js; \
 	fi
 	@# Copy overrides/ directory contents over submodule
 	@if [ -d overrides/eleventy-site ]; then \
@@ -84,12 +100,14 @@ clean:
 		cp nginx.conf.template nginx.conf; \
 		echo "    nginx.conf restored from template"; \
 	fi
-	@echo "# Legacy URL redirects - add your mappings here" > redirects.map
-	@echo "# Example: /2023/01/15/old-post.html /content/notes/2023-01-15-slug/;" >> redirects.map
-	@echo "    redirects.map restored to empty template"
-	@echo "# Old blog URL redirects - add your mappings here" > old-blog-redirects.map
-	@echo "# Example: /2020/my-old-post /content/articles/2020-01-01-my-old-post/;" >> old-blog-redirects.map
-	@echo "    old-blog-redirects.map restored to empty template"
+	@if [ -f redirects.map.template ]; then \
+		cp redirects.map.template redirects.map; \
+		echo "    redirects.map restored from template"; \
+	fi
+	@if [ -f old-blog-redirects.map.template ]; then \
+		cp old-blog-redirects.map.template old-blog-redirects.map; \
+		echo "    old-blog-redirects.map restored from template"; \
+	fi
 	@if [ -f indiekit.config.js.template ]; then \
 		cp indiekit.config.js.template indiekit.config.js; \
 		echo "    indiekit.config.js restored from template"; \

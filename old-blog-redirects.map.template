@@ -1,0 +1,3 @@
+# Old blog URL redirects
+# Format: old-path new-path;
+# Example: /2020/my-old-post /content/articles/2020-01-01-my-old-post/;

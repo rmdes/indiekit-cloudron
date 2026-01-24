@@ -1,30 +1,59 @@
 /**
  * Indiekit configuration for Cloudron
+ *
+ * This is an IndieWeb-ready blog deployment with full Micropub support.
  * Documentation: https://getindiekit.com/configuration
+ *
+ * Required environment variables (set in Cloudron app settings):
+ * - SITE_URL: Your site URL (e.g., https://example.com)
+ *
+ * Optional syndication (set to enable):
+ * - MASTODON_INSTANCE: Mastodon instance URL (e.g., https://mastodon.social)
+ * - MASTODON_USER: Your Mastodon username
+ * - MASTODON_ACCESS_TOKEN: Mastodon access token
+ * - BLUESKY_HANDLE: Your Bluesky handle (e.g., you.bsky.social)
+ * - BLUESKY_PASSWORD: Bluesky app password
+ *
+ * Optional integrations:
+ * - GITHUB_USERNAME: GitHub username for activity display
+ * - GITHUB_TOKEN: GitHub personal access token
+ * - GITHUB_FEATURED_REPOS: Comma-separated repos (e.g., "user/repo1,user/repo2")
+ * - FUNKWHALE_INSTANCE: Funkwhale instance URL
+ * - FUNKWHALE_USERNAME: Funkwhale username
+ * - FUNKWHALE_TOKEN: Funkwhale API token
+ * - YOUTUBE_API_KEY: YouTube Data API key
+ * - YOUTUBE_CHANNELS: Comma-separated channel handles (e.g., "@channel1,@channel2")
+ * - WEBMENTION_IO_TOKEN: Webmention.io token (get from https://webmention.io/settings)
  */
 
 export default {
   application: {
     mongodbUrl: process.env.MONGODB_URL,
     url: process.env.CLOUDRON_APP_URL,
-    name: "Indiekit",
-    locale: "en",
-    timeZone: "Europe/London",
+    name: process.env.SITE_NAME || "My IndieWeb Blog",
+    locale: process.env.SITE_LOCALE || "en",
+    timeZone: process.env.SITE_TIMEZONE || "UTC",
   },
 
   publication: {
-    me: "https://rmendes.net",
-    categories: ["blog", "notes", "links", "photos"],
+    me: process.env.SITE_URL,
+    categories: process.env.SITE_CATEGORIES?.split(",") || ["blog", "notes", "links", "photos"],
   },
 
   plugins: [
     "@indiekit/preset-eleventy",
     "@indiekit/store-file-system",
+    // Syndicators (configured below if env vars present)
     "@indiekit/syndicator-mastodon",
     "@indiekit/syndicator-bluesky",
+    "@indiekit/endpoint-syndicate",
     "@indiekit/endpoint-json-feed",
-    "@indiekit/endpoint-github",
+    // Custom endpoints
+    "@rmdes/indiekit-endpoint-github",
+    "@rmdes/indiekit-endpoint-funkwhale",
+    "@rmdes/indiekit-endpoint-youtube",
     "@indiekit/endpoint-webmention-io",
+    // Post types
     "@indiekit/post-type-article",
     "@indiekit/post-type-audio",
     "@indiekit/post-type-bookmark",
@@ -44,29 +73,66 @@ export default {
     directory: "/app/data/content",
   },
 
+  // Mastodon syndication (optional - configure via env vars)
   "@indiekit/syndicator-mastodon": {
-    url: "https://mstdn.social",
-    user: "rmdes",
+    url: process.env.MASTODON_INSTANCE,
+    user: process.env.MASTODON_USER,
+    accessToken: process.env.MASTODON_ACCESS_TOKEN,
+    checked: !!process.env.MASTODON_ACCESS_TOKEN,
   },
 
+  // Bluesky syndication (optional - configure via env vars)
   "@indiekit/syndicator-bluesky": {
-    handle: "rmendes.net",
+    handle: process.env.BLUESKY_HANDLE,
+    password: process.env.BLUESKY_PASSWORD,
+    checked: !!process.env.BLUESKY_PASSWORD,
   },
 
-  // GitHub activity endpoint - accessible at /github
-  "@indiekit/endpoint-github": {
-    username: "rmdes",
+  // GitHub activity endpoint (optional)
+  // Accessible at /githubapi - powers the GitHub activity page
+  "@rmdes/indiekit-endpoint-github": {
+    mountPath: "/githubapi",
+    username: process.env.GITHUB_USERNAME,
     token: process.env.GITHUB_TOKEN,
-    cacheTtl: 900_000,
+    cacheTtl: 900_000, // 15 minutes
     limits: { commits: 10, stars: 20, repos: 10 },
     repos: [],
-    featuredRepos: [
-      "osintukraine/tg-archiver",
-      "osintukraine/osint-intelligence-platform",
-    ],
+    featuredRepos: process.env.GITHUB_FEATURED_REPOS?.split(",") || [],
   },
 
-  // Webmention.io - get token from https://webmention.io/settings
+  // Funkwhale listening activity endpoint (optional)
+  // Accessible at /funkwhaleapi - powers the listening activity page
+  "@rmdes/indiekit-endpoint-funkwhale": {
+    mountPath: "/funkwhaleapi",
+    instanceUrl: process.env.FUNKWHALE_INSTANCE,
+    username: process.env.FUNKWHALE_USERNAME,
+    token: process.env.FUNKWHALE_TOKEN,
+    cacheTtl: 900_000, // 15 minutes
+    syncInterval: 300_000, // 5 minutes
+    limits: {
+      listenings: 20,
+      favorites: 20,
+      topArtists: 10,
+      topAlbums: 10,
+    },
+  },
+
+  // YouTube channel endpoint (optional)
+  // Accessible at /youtubeapi - powers the YouTube activity page
+  "@rmdes/indiekit-endpoint-youtube": {
+    mountPath: "/youtubeapi",
+    apiKey: process.env.YOUTUBE_API_KEY,
+    channels: process.env.YOUTUBE_CHANNELS?.split(",").map((handle) => ({
+      handle: handle.trim(),
+      name: handle.trim().replace("@", ""),
+    })) || [],
+    cacheTtl: 300_000, // 5 minutes
+    liveCacheTtl: 60_000, // 1 minute for live status
+    limits: { videos: 10 },
+  },
+
+  // Webmention.io integration (optional)
+  // Get token from https://webmention.io/settings
   "@indiekit/endpoint-webmention-io": {
     token: process.env.WEBMENTION_IO_TOKEN,
   },

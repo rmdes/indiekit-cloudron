@@ -1,0 +1,3 @@
+# Legacy URL redirects
+# Format: old-path new-path;
+# Example: /2023/01/15/old-post.html /content/notes/2023-01-15-slug/;

@@ -18,12 +18,13 @@ migrated-content/
 *.rmendes
 overrides/
 
-# Personal config overrides (applied during Docker build)
-# Base files (nginx.conf, redirects.map) stay in repo as templates
-# .rmendes files override them during build
-nginx.conf.rmendes
-redirects.map.rmendes
-old-blog-redirects.map.rmendes
+# Personal config overrides
+# .template files stay in repo, .rmendes files override during build
+# Generated files (without .template suffix) are gitignored
+nginx.conf
+redirects.map
+old-blog-redirects.map
+indiekit.config.js
 
 # Migration scripts (user-specific)
 scripts/
