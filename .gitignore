@@ -49,6 +49,5 @@ Thumbs.db
 *.tar.gz
 
 # Development files
-CLAUDE.md
 FRONTEND_PLAN.md
 indieweb.txt
