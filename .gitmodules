@@ -1,0 +1,3 @@
+[submodule "eleventy-site"]
+	path = eleventy-site
+	url = https://github.com/rmdes/indiekit-eleventy-theme.git
