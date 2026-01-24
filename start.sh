@@ -165,6 +165,8 @@ chown cloudron:cloudron /app/data/site/index.html
 
 echo "==> Building Eleventy site"
 cd /app/pkg/eleventy-site
+# Increase Node.js heap size for image processing (prevents OOM during build)
+export NODE_OPTIONS="--max-old-space-size=2048"
 gosu cloudron:cloudron ./node_modules/.bin/eleventy --output=/app/data/site || {
     echo "==> Eleventy build failed, creating placeholder"
     mkdir -p /app/data/site
