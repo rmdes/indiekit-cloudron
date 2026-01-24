@@ -98,7 +98,7 @@ export default {
     username: process.env.GITHUB_USERNAME,
     token: process.env.GITHUB_TOKEN,
     cacheTtl: 900_000, // 15 minutes
-    limits: { commits: 10, stars: 20, repos: 10 },
+    limits: { commits: 10, stars: 20, contributions: 10, activity: 20, repos: 10 },
     repos: [],
     featuredRepos: process.env.GITHUB_FEATURED_REPOS?.split(",") || [],
   },

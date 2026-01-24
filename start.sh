@@ -159,6 +159,9 @@ fi
 echo "==> Clearing stale site files"
 rm -rf /app/data/site/*
 
+echo "==> Clearing Eleventy fetch cache (force fresh API data)"
+rm -rf /app/data/cache/eleventy-fetch-*
+
 # Create temporary placeholder so health checks don't fail during build
 echo '<html><head><meta http-equiv="refresh" content="5"></head><body><p>Building site...</p></body></html>' > /app/data/site/index.html
 chown cloudron:cloudron /app/data/site/index.html
