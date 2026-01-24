@@ -55,6 +55,7 @@ export default {
     "@rmdes/indiekit-endpoint-funkwhale",
     "@rmdes/indiekit-endpoint-lastfm",
     "@rmdes/indiekit-endpoint-youtube",
+    "@rmdes/indiekit-endpoint-rss",
     "@indiekit/endpoint-webmention-io",
     // Post types
     "@indiekit/post-type-article",
@@ -148,6 +149,17 @@ export default {
     cacheTtl: 300_000, // 5 minutes
     liveCacheTtl: 60_000, // 1 minute for live status
     limits: { videos: 10 },
+  },
+
+  // RSS feed reader endpoint (optional)
+  // Accessible at /rssapi - powers the /news/ page
+  // Add feeds via the admin UI at /rssapi/
+  "@rmdes/indiekit-endpoint-rss": {
+    mountPath: "/rssapi",
+    syncInterval: 900_000, // 15 minutes
+    maxItemsPerFeed: 50,
+    fetchTimeout: 10_000,
+    maxConcurrentFetches: 3,
   },
 
   // Webmention.io integration (optional)
