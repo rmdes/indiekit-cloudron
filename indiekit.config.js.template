@@ -21,6 +21,8 @@
  * - FUNKWHALE_INSTANCE: Funkwhale instance URL
  * - FUNKWHALE_USERNAME: Funkwhale username
  * - FUNKWHALE_TOKEN: Funkwhale API token
+ * - LASTFM_API_KEY: Last.fm API key (get from https://www.last.fm/api/account/create)
+ * - LASTFM_USERNAME: Last.fm username
  * - YOUTUBE_API_KEY: YouTube Data API key
  * - YOUTUBE_CHANNELS: Comma-separated channel handles (e.g., "@channel1,@channel2")
  * - WEBMENTION_IO_TOKEN: Webmention.io token (get from https://webmention.io/settings)
@@ -51,6 +53,7 @@ export default {
     // Custom endpoints
     "@rmdes/indiekit-endpoint-github",
     "@rmdes/indiekit-endpoint-funkwhale",
+    "@rmdes/indiekit-endpoint-lastfm",
     "@rmdes/indiekit-endpoint-youtube",
     "@indiekit/endpoint-webmention-io",
     // Post types
@@ -112,6 +115,22 @@ export default {
     limits: {
       listenings: 20,
       favorites: 20,
+      topArtists: 10,
+      topAlbums: 10,
+    },
+  },
+
+  // Last.fm listening activity endpoint (optional)
+  // Accessible at /lastfmapi - powers the listening activity page
+  "@rmdes/indiekit-endpoint-lastfm": {
+    mountPath: "/lastfmapi",
+    apiKey: process.env.LASTFM_API_KEY,
+    username: process.env.LASTFM_USERNAME,
+    cacheTtl: 900_000, // 15 minutes
+    syncInterval: 300_000, // 5 minutes
+    limits: {
+      scrobbles: 20,
+      loved: 20,
       topArtists: 10,
       topAlbums: 10,
     },

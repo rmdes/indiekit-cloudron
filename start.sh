@@ -72,6 +72,11 @@ export YOUTUBE_API_KEY=""
 # Comma-separated channel handles (e.g., "@channel1,@channel2")
 export YOUTUBE_CHANNELS=""
 
+# Last.fm configuration (for /listening endpoint)
+# Get API key from https://www.last.fm/api/account/create
+export LASTFM_API_KEY=""
+export LASTFM_USERNAME=""
+
 # Site customization (optional)
 export SITE_NAME="My IndieWeb Blog"
 export SITE_DESCRIPTION="An IndieWeb blog powered by Indiekit"
@@ -122,6 +127,32 @@ for i in {1..30}; do
     fi
     sleep 1
 done
+
+# Wait extra time for API endpoints to initialize (plugins need to register routes)
+echo "==> Waiting for API endpoints to initialize..."
+sleep 3
+
+# Verify Funkwhale API is available (if configured)
+if [ -n "${FUNKWHALE_TOKEN:-}" ]; then
+    for i in {1..10}; do
+        if curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/funkwhaleapi/api/now-playing 2>/dev/null | grep -q "200"; then
+            echo "==> Funkwhale API is ready"
+            break
+        fi
+        sleep 1
+    done
+fi
+
+# Verify Last.fm API is available (if configured)
+if [ -n "${LASTFM_API_KEY:-}" ]; then
+    for i in {1..10}; do
+        if curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/lastfmapi/api/now-playing 2>/dev/null | grep -q "200"; then
+            echo "==> Last.fm API is ready"
+            break
+        fi
+        sleep 1
+    done
+fi
 
 # Build Eleventy site from /app/pkg/eleventy-site (where node_modules lives)
 # Symlinks in Dockerfile point content/_site/.cache to /app/data
