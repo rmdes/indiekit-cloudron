@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=106
+ARG CACHE_BUST=109
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -20,6 +20,7 @@ RUN apt-get update && \
 # Install Indiekit and plugins
 ARG INDIEKIT_VERSION=1.0.0-beta.25
 RUN chown -R cloudron:cloudron /app/code && \
+    gosu cloudron:cloudron npm cache clean --force && \
     gosu cloudron:cloudron npm install \
         @indiekit/indiekit@${INDIEKIT_VERSION} \
         @indiekit/preset-hugo \
@@ -46,7 +47,8 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-funkwhale \
         @rmdes/indiekit-endpoint-lastfm \
         @rmdes/indiekit-endpoint-youtube \
-        @rmdes/indiekit-endpoint-rss
+        @rmdes/indiekit-endpoint-rss \
+        @rmdes/indiekit-endpoint-microsub
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
