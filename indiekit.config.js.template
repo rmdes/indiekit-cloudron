@@ -31,6 +31,10 @@
 export default {
   application: {
     mongodbUrl: process.env.MONGODB_URL,
+    // Redis URL for caching (Cloudron provides CLOUDRON_REDIS_* env vars)
+    redisUrl: process.env.CLOUDRON_REDIS_HOST
+      ? `redis://${process.env.CLOUDRON_REDIS_PASSWORD ? `:${process.env.CLOUDRON_REDIS_PASSWORD}@` : ""}${process.env.CLOUDRON_REDIS_HOST}:${process.env.CLOUDRON_REDIS_PORT || 6379}`
+      : undefined,
     url: process.env.CLOUDRON_APP_URL,
     name: process.env.SITE_NAME || "My IndieWeb Blog",
     locale: process.env.SITE_LOCALE || "en",
@@ -56,6 +60,8 @@ export default {
     "@rmdes/indiekit-endpoint-lastfm",
     "@rmdes/indiekit-endpoint-youtube",
     "@rmdes/indiekit-endpoint-rss",
+    "@rmdes/indiekit-endpoint-microsub",
+    "@rmdes/indiekit-endpoint-webmentions-proxy",
     "@indiekit/endpoint-webmention-io",
     // Post types
     "@indiekit/post-type-article",
@@ -160,6 +166,16 @@ export default {
     maxItemsPerFeed: 50,
     fetchTimeout: 10_000,
     maxConcurrentFetches: 3,
+  },
+
+  // Webmentions proxy endpoint (optional)
+  // Accessible at /webmentions-api/api/mentions - powers the /interactions/ page
+  // Proxies webmention.io API with server-side token for real-time fetching
+  "@rmdes/indiekit-endpoint-webmentions-proxy": {
+    mountPath: "/webmentions-api",
+    token: process.env.WEBMENTION_IO_TOKEN,
+    domain: process.env.SITE_URL?.replace(/^https?:\/\//, "").replace(/\/$/, ""),
+    cacheTtl: 60, // 1 minute
   },
 
   // Webmention.io integration (optional)

@@ -11,7 +11,10 @@
   "addons": {
     "localstorage": {},
     "mongodb": {},
-    "sendmail": {}
+    "sendmail": {},
+    "redis": {
+      "optional": true
+    }
   },
   "manifestVersion": 2,
   "minBoxVersion": "7.4.0",
