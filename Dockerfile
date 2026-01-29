@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=119
+ARG CACHE_BUST=120
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -17,7 +17,11 @@ RUN apt-get update && \
     apt-get -y install build-essential python3 && \
     rm -rf /var/cache/apt /var/lib/apt/lists
 
+# Copy package.json with npm overrides (replaces @indiekit/endpoint-auth with our fork)
+COPY package.json /app/code/
+
 # Install Indiekit and plugins
+# Note: @indiekit/endpoint-auth is overridden to @rmdes/indiekit-endpoint-auth via package.json
 ARG INDIEKIT_VERSION=1.0.0-beta.25
 RUN chown -R cloudron:cloudron /app/code && \
     gosu cloudron:cloudron npm cache clean --force && \
@@ -43,7 +47,6 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-repost \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video \
-        @rmdes/indiekit-endpoint-auth \
         @rmdes/indiekit-endpoint-github \
         @rmdes/indiekit-endpoint-funkwhale \
         @rmdes/indiekit-endpoint-lastfm \
