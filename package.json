@@ -3,6 +3,6 @@
   "private": true,
   "description": "Indiekit deployment for Cloudron",
   "overrides": {
-    "@indiekit/endpoint-auth": "npm:@rmdes/indiekit-endpoint-auth@^1.0.0"
+    "@indiekit/endpoint-auth": "npm:@rmdes/indiekit-endpoint-auth@^1.0.0-beta.25"
   }
 }
