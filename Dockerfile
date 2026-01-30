@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=127
+ARG CACHE_BUST=128
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -21,9 +21,8 @@ RUN apt-get update && \
 COPY package.json /app/code/
 
 # Install Indiekit and plugins
-# Note: Overrides in package.json replace upstream packages with our forks:
-#   - @indiekit/endpoint-auth -> @rmdes/indiekit-endpoint-auth
-#   - @indiekit/preset-eleventy -> @rmdes/indiekit-preset-eleventy
+# Note: @indiekit/endpoint-auth is overridden via package.json
+# Note: @rmdes/indiekit-preset-eleventy replaces @indiekit/preset-eleventy (permalink fix)
 ARG INDIEKIT_VERSION=1.0.0-beta.25
 RUN chown -R cloudron:cloudron /app/code && \
     gosu cloudron:cloudron npm cache clean --force && \
@@ -54,7 +53,8 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-youtube \
         @rmdes/indiekit-endpoint-rss \
         @rmdes/indiekit-endpoint-microsub \
-        @rmdes/indiekit-endpoint-webmentions-proxy
+        @rmdes/indiekit-endpoint-webmentions-proxy \
+        @rmdes/indiekit-preset-eleventy
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
