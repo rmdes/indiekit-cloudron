@@ -287,6 +287,15 @@ http {
         rewrite "^/articles/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/articles/$1-$2-$3-$4/" permanent;
         rewrite "^/notes/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/notes/$1-$2-$3-$4/" permanent;
         rewrite "^/bookmarks/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/bookmarks/$1-$2-$3-$4/" permanent;
+        rewrite "^/likes/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/likes/$1-$2-$3-$4/" permanent;
+        rewrite "^/reposts/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/reposts/$1-$2-$3-$4/" permanent;
+        rewrite "^/photos/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/photos/$1-$2-$3-$4/" permanent;
+        rewrite "^/replies/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/replies/$1-$2-$3-$4/" permanent;
+        rewrite "^/videos/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/videos/$1-$2-$3-$4/" permanent;
+        rewrite "^/audio/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/audio/$1-$2-$3-$4/" permanent;
+        rewrite "^/jams/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/jams/$1-$2-$3-$4/" permanent;
+        rewrite "^/rsvps/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/rsvps/$1-$2-$3-$4/" permanent;
+        rewrite "^/events/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/events/$1-$2-$3-$4/" permanent;
 
         # Example: Legacy .html URLs (e.g., from micro.blog) - redirect via map
         # Matches: /YYYY/MM/DD/slug.html

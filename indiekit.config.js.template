@@ -47,7 +47,7 @@ export default {
   },
 
   plugins: [
-    "@indiekit/preset-eleventy",
+    "@rmdes/indiekit-preset-eleventy",
     "@indiekit/store-file-system",
     // Syndicators (configured below if env vars present)
     "@indiekit/syndicator-mastodon",
