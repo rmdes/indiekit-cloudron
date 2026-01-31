@@ -66,6 +66,7 @@ export default {
     // Syndicators
     "@indiekit/syndicator-mastodon",
     "@indiekit/syndicator-bluesky",
+    "@rmdes/indiekit-syndicator-indienews",
     "@indiekit/endpoint-syndicate",
     "@indiekit/endpoint-json-feed",
     // Custom endpoints
@@ -97,6 +98,13 @@ export default {
     handle: process.env.BLUESKY_HANDLE,
     password: process.env.BLUESKY_PASSWORD,
     checked: !!process.env.BLUESKY_PASSWORD,
+  },
+
+  // IndieNews syndicator (optional) - submit posts to IndieNews aggregator
+  // Configure languages via env var: INDIENEWS_LANGUAGES=en,fr
+  "@rmdes/indiekit-syndicator-indienews": {
+    languages: process.env.INDIENEWS_LANGUAGES?.split(",") || ["en"],
+    checked: false,
   },
 
   // GitHub activity endpoint (optional)
