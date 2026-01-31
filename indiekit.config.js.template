@@ -47,9 +47,23 @@ export default {
   },
 
   plugins: [
+    // Post types MUST come BEFORE preset (preset configures paths for them)
+    "@indiekit/post-type-article",
+    "@indiekit/post-type-audio",
+    "@indiekit/post-type-bookmark",
+    "@indiekit/post-type-event",
+    "@indiekit/post-type-jam",
+    "@indiekit/post-type-like",
+    "@indiekit/post-type-note",
+    "@indiekit/post-type-photo",
+    "@indiekit/post-type-reply",
+    "@indiekit/post-type-repost",
+    "@indiekit/post-type-rsvp",
+    "@indiekit/post-type-video",
+    // Preset and store (preset must come after post types)
     "@rmdes/indiekit-preset-eleventy",
     "@indiekit/store-file-system",
-    // Syndicators (configured below if env vars present)
+    // Syndicators
     "@indiekit/syndicator-mastodon",
     "@indiekit/syndicator-bluesky",
     "@indiekit/endpoint-syndicate",
@@ -63,19 +77,6 @@ export default {
     "@rmdes/indiekit-endpoint-microsub",
     "@rmdes/indiekit-endpoint-webmentions-proxy",
     "@indiekit/endpoint-webmention-io",
-    // Post types
-    "@indiekit/post-type-article",
-    "@indiekit/post-type-audio",
-    "@indiekit/post-type-bookmark",
-    "@indiekit/post-type-event",
-    "@indiekit/post-type-jam",
-    "@indiekit/post-type-like",
-    "@indiekit/post-type-note",
-    "@indiekit/post-type-photo",
-    "@indiekit/post-type-reply",
-    "@indiekit/post-type-repost",
-    "@indiekit/post-type-rsvp",
-    "@indiekit/post-type-video",
   ],
 
   // Local file storage - persisted in /app/data/content

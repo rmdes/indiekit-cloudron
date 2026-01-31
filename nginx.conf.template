@@ -161,6 +161,24 @@ http {
             proxy_set_header X-Forwarded-Proto https;
         }
 
+        # Microsub social reader endpoint
+        location /microsub {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
+        # Webmentions proxy API endpoint (public - no auth required)
+        location /webmentions-api {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
         location /session {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
@@ -251,7 +269,14 @@ http {
             proxy_set_header X-Forwarded-Proto https;
         }
 
-        # Well-known endpoints (webfinger, etc.)
+        # Well-known static files (served from Eleventy site without auth)
+        # Example: keybase.txt for Keybase identity verification
+        # Uncomment and customize for your static .well-known files
+        # location = /.well-known/keybase.txt {
+        #     alias /app/data/site/.well-known/keybase.txt;
+        # }
+
+        # Well-known endpoints (webfinger, IndieAuth, etc.) - proxy to Indiekit
         location /.well-known/ {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;

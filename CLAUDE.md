@@ -8,6 +8,10 @@ This is a Cloudron-packaged version of Indiekit (IndieWeb server) combined with 
 
 **Target Site:** https://rmendes.net
 
+## User-Only Operations
+
+**npm publish requires OTP:** The user must run `npm publish` manually because it requires a one-time password from their authenticator app. Claude cannot complete this step.
+
 ## CRITICAL: Eleventy Theme Submodule
 
 The `eleventy-site/` directory is a **Git submodule** pointing to the separate theme repository:
