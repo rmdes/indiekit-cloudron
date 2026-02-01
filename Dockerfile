@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=141
+ARG CACHE_BUST=142
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -47,7 +47,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-repost \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video \
-        @rmdes/indiekit-post-type-page@1.0.2 \
+        @rmdes/indiekit-post-type-page@1.0.3 \
         @rmdes/indiekit-endpoint-github \
         @rmdes/indiekit-endpoint-funkwhale \
         @rmdes/indiekit-endpoint-lastfm \
