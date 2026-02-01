@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=138
+ARG CACHE_BUST=139
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -47,6 +47,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-repost \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video \
+        @rmdes/indiekit-post-type-page \
         @rmdes/indiekit-endpoint-github \
         @rmdes/indiekit-endpoint-funkwhale \
         @rmdes/indiekit-endpoint-lastfm \
@@ -55,7 +56,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-microsub \
         @rmdes/indiekit-endpoint-webmentions-proxy \
         @rmdes/indiekit-syndicator-indienews \
-        @rmdes/indiekit-preset-eleventy@1.0.0-beta.28
+        @rmdes/indiekit-preset-eleventy@1.0.0-beta.29
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
