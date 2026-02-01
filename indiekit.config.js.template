@@ -60,6 +60,7 @@ export default {
     "@indiekit/post-type-repost",
     "@indiekit/post-type-rsvp",
     "@indiekit/post-type-video",
+    "@rmdes/indiekit-post-type-page", // Slash pages (/about, /now, /uses, etc.)
     // Preset and store (preset must come after post types)
     "@rmdes/indiekit-preset-eleventy",
     "@indiekit/store-file-system",
