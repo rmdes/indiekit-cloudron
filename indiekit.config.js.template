@@ -78,6 +78,7 @@ export default {
     "@rmdes/indiekit-endpoint-rss",
     "@rmdes/indiekit-endpoint-microsub",
     "@rmdes/indiekit-endpoint-webmentions-proxy",
+    "@rmdes/indiekit-endpoint-podroll",
     "@indiekit/endpoint-webmention-io",
   ],
 
@@ -190,6 +191,17 @@ export default {
     token: process.env.WEBMENTION_IO_TOKEN,
     domain: process.env.SITE_URL?.replace(/^https?:\/\//, "").replace(/\/$/, ""),
     cacheTtl: 60, // 1 minute
+  },
+
+  // Podroll endpoint (optional)
+  // Aggregates podcast episodes from FreshRSS, powers the /podroll/ page
+  // Requires FreshRSS API URL and OPML export URL
+  "@rmdes/indiekit-endpoint-podroll": {
+    mountPath: "/podrollapi",
+    episodesUrl: process.env.PODROLL_EPISODES_URL,
+    opmlUrl: process.env.PODROLL_OPML_URL,
+    syncInterval: 900_000, // 15 minutes
+    maxEpisodes: 100,
   },
 
   // Webmention.io integration (optional)
