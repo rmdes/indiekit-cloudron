@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=147
+ARG CACHE_BUST=151
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -23,6 +23,7 @@ COPY package.json /app/code/
 # Install Indiekit and plugins
 # Note: @indiekit/endpoint-auth is overridden via package.json
 # Note: @rmdes/indiekit-preset-eleventy replaces @indiekit/preset-eleventy (permalink fix)
+# Note: @rmdes/indiekit-endpoint-micropub replaces @indiekit/endpoint-micropub (typeConfig validation fix)
 ARG INDIEKIT_VERSION=1.0.0-beta.25
 RUN chown -R cloudron:cloudron /app/code && \
     gosu cloudron:cloudron npm cache clean --force && \
@@ -30,8 +31,9 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/indiekit@${INDIEKIT_VERSION} \
         @indiekit/preset-hugo \
         @indiekit/store-file-system \
-        @rmdes/indiekit-syndicator-mastodon@1.0.1 \
-        @rmdes/indiekit-syndicator-bluesky@1.0.3 \
+        @rmdes/indiekit-syndicator-mastodon@1.0.2 \
+        @rmdes/indiekit-syndicator-bluesky@1.0.5 \
+        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.27 \
         @indiekit/endpoint-syndicate \
         @indiekit/endpoint-json-feed \
         @indiekit/endpoint-webmention-io \
