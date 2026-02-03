@@ -252,10 +252,15 @@ http {
         }
 
         # Indiekit service worker and manifest
+        # Patch: skip cross-origin requests so external audio/media isn't intercepted
         location = /serviceworker.js {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Accept-Encoding "";
+            sub_filter 'if (request.method !== "GET")' 'if (new URL(request.url).origin !== self.location.origin || request.method !== "GET")';
+            sub_filter_once on;
+            sub_filter_types application/javascript;
         }
 
         location = /app.webmanifest {
