@@ -52,13 +52,13 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-post-type-page@1.0.3 \
         @rmdes/indiekit-endpoint-github \
         @rmdes/indiekit-endpoint-funkwhale \
-        @rmdes/indiekit-endpoint-lastfm \
+        @rmdes/indiekit-endpoint-lastfm@1.0.6 \
         @rmdes/indiekit-endpoint-youtube \
-        @rmdes/indiekit-endpoint-rss \
+        @rmdes/indiekit-endpoint-rss@1.0.7 \
         @rmdes/indiekit-endpoint-microsub \
         @rmdes/indiekit-endpoint-webmentions-proxy \
         @rmdes/indiekit-syndicator-indienews \
-        @rmdes/indiekit-endpoint-podroll@1.0.4 \
+        @rmdes/indiekit-endpoint-podroll@1.0.5 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.29
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
