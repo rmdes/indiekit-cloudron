@@ -58,7 +58,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-microsub \
         @rmdes/indiekit-endpoint-webmentions-proxy \
         @rmdes/indiekit-syndicator-indienews \
-        @rmdes/indiekit-endpoint-podroll@1.0.3 \
+        @rmdes/indiekit-endpoint-podroll@1.0.4 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.29
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
