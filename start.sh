@@ -168,8 +168,8 @@ chown cloudron:cloudron /app/data/site/index.html
 
 echo "==> Building Eleventy site"
 cd /app/pkg/eleventy-site
-# Increase Node.js heap size for image processing (prevents OOM during build)
-export NODE_OPTIONS="--max-old-space-size=2048"
+# Increase Node.js heap size (container has 3GB, leave ~500MB for other processes)
+export NODE_OPTIONS="--max-old-space-size=2560"
 gosu cloudron:cloudron ./node_modules/.bin/eleventy --output=/app/data/site || {
     echo "==> Eleventy build failed, creating placeholder"
     mkdir -p /app/data/site
@@ -179,9 +179,9 @@ gosu cloudron:cloudron ./node_modules/.bin/eleventy --output=/app/data/site || {
 echo "==> Setting permissions on generated site"
 chown -R cloudron:cloudron /app/data
 
-# Start Eleventy in watch mode to rebuild on content changes
+# Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
 echo "==> Starting Eleventy watcher for auto-rebuild"
-gosu cloudron:cloudron ./node_modules/.bin/eleventy --watch --output=/app/data/site &
+gosu cloudron:cloudron ./node_modules/.bin/eleventy --watch --incremental --output=/app/data/site &
 
 # Start syndication background process
 # Polls the syndicate endpoint every 2 minutes to process pending syndications
