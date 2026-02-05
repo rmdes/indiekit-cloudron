@@ -221,6 +221,22 @@ http {
             proxy_set_header X-Forwarded-Proto https;
         }
 
+        # Feed files with WebSub Link header for hub discovery
+        location = /feed.xml {
+            add_header Link '<https://websubhub.com/hub>; rel="hub"';
+            add_header Link '<https://$host/feed.xml>; rel="self"';
+        }
+
+        location = /feed.json {
+            add_header Link '<https://websubhub.com/hub>; rel="hub"';
+            add_header Link '<https://$host/feed.json>; rel="self"';
+        }
+
+        # Redirect /feed to /feed.xml (legacy feed URL)
+        location = /feed {
+            return 301 https://$host/feed.xml;
+        }
+
         # Redirect /admin to Indiekit's session login with redirect to dashboard
         location = /admin {
             return 302 https://$host/session/login?redirect=/dashboard;
@@ -320,6 +336,9 @@ http {
         # =================================================================
         # These patterns help migrate content from old blog platforms.
         # Populate redirects.map and old-blog-redirects.map with your mappings.
+
+        # Legacy /tag/ redirect to /categories/ (old blog platform URLs)
+        rewrite "^/tag/(.+)$" "/categories/$1/" permanent;
 
         # Example: Rewrite old URL format to new Eleventy content paths
         # /articles/YYYY/MM/DD/slug -> /content/articles/YYYY-MM-DD-slug/
