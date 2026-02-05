@@ -81,6 +81,29 @@ export LASTFM_USERNAME=""
 export SITE_NAME="My IndieWeb Blog"
 export SITE_DESCRIPTION="An IndieWeb blog powered by Indiekit"
 export AUTHOR_NAME="Your Name"
+export AUTHOR_TITLE=""
+export AUTHOR_BIO="Welcome to my IndieWeb blog."
+export AUTHOR_AVATAR=""
+export AUTHOR_LOCATION=""
+export AUTHOR_LOCALITY=""
+export AUTHOR_COUNTRY=""
+export AUTHOR_ORG=""
+export AUTHOR_PRONOUN=""
+export AUTHOR_EMAIL=""
+export AUTHOR_KEY_URL=""
+export AUTHOR_CATEGORIES=""
+
+# Social profile handles (used for feed widgets AND h-card rel="me" links)
+export GITHUB_USERNAME=""
+export BLUESKY_HANDLE=""
+export MASTODON_INSTANCE=""
+export MASTODON_USER=""
+export LINKEDIN_USERNAME=""
+
+# Or set all social links manually (overrides auto-generation from handles above)
+# Format: "Name|URL|icon,Name|URL|icon"
+# Example: "GitHub|https://github.com/user|github,Mastodon|https://mastodon.social/@user|mastodon"
+export SITE_SOCIAL=""
 ENVEOF
 fi
 
@@ -180,8 +203,43 @@ echo "==> Setting permissions on generated site"
 chown -R cloudron:cloudron /app/data
 
 # Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
+# Wrapped in a supervisor loop that restarts on crash with exponential backoff
 echo "==> Starting Eleventy watcher for auto-rebuild"
-gosu cloudron:cloudron ./node_modules/.bin/eleventy --watch --incremental --output=/app/data/site &
+(
+    RESTART_COUNT=0
+    BACKOFF=5
+    MAX_BACKOFF=300
+    LAST_START=0
+
+    while true; do
+        NOW=$(date +%s)
+
+        # Reset backoff if the watcher ran for at least 5 minutes (healthy run)
+        if [ $LAST_START -gt 0 ] && [ $((NOW - LAST_START)) -ge 300 ]; then
+            RESTART_COUNT=0
+            BACKOFF=5
+        fi
+
+        LAST_START=$NOW
+        RESTART_COUNT=$((RESTART_COUNT + 1))
+
+        if [ $RESTART_COUNT -eq 1 ]; then
+            echo "[eleventy-watcher] Starting watcher"
+        else
+            echo "[eleventy-watcher] Restarting watcher (attempt $RESTART_COUNT, backoff ${BACKOFF}s)"
+            sleep $BACKOFF
+            # Exponential backoff: 5, 10, 20, 40, 80, 160, 300 (capped)
+            BACKOFF=$((BACKOFF * 2))
+            if [ $BACKOFF -gt $MAX_BACKOFF ]; then
+                BACKOFF=$MAX_BACKOFF
+            fi
+        fi
+
+        gosu cloudron:cloudron ./node_modules/.bin/eleventy --watch --output=/app/data/site
+        EXIT_CODE=$?
+        echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
+    done
+) &
 
 # Start syndication background process
 # Polls the syndicate endpoint every 2 minutes to process pending syndications
