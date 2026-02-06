@@ -31,10 +31,10 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/indiekit@${INDIEKIT_VERSION} \
         @indiekit/preset-hugo \
         @indiekit/store-file-system \
-        @rmdes/indiekit-syndicator-mastodon@1.0.3 \
-        @rmdes/indiekit-syndicator-bluesky@1.0.6 \
+        @rmdes/indiekit-syndicator-mastodon@1.0.4 \
+        @rmdes/indiekit-syndicator-bluesky@1.0.7 \
         @rmdes/indiekit-endpoint-micropub@1.0.0-beta.27 \
-        @indiekit/endpoint-syndicate \
+        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.28 \
         @indiekit/endpoint-json-feed \
         @indiekit/endpoint-webmention-io \
         @indiekit/post-type-article \
@@ -59,6 +59,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-webmentions-proxy \
         @rmdes/indiekit-syndicator-indienews \
         @rmdes/indiekit-endpoint-podroll@1.0.5 \
+        @rmdes/indiekit-endpoint-webmention-sender@1.0.0 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.29
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
@@ -90,7 +91,7 @@ COPY migrated-content /app/pkg/migrated-content
 
 # Copy config files
 # Base files are templates in repo, personal overrides applied via Makefile before build
-COPY start.sh indiekit.config.js.template nginx.conf.template /app/pkg/
+COPY start.sh syndicate-backlog.sh indiekit.config.js.template nginx.conf.template /app/pkg/
 COPY indiekit.config.js nginx.conf redirects.map old-blog-redirects.map /app/pkg/
 
 CMD [ "/app/pkg/start.sh" ]

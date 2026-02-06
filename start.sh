@@ -276,6 +276,43 @@ echo "==> Starting syndication background process"
     done
 ) &
 
+# Start webmention sender background process
+# Polls the webmention-sender endpoint every 5 minutes to send pending webmentions
+echo "==> Starting webmention sender background process"
+(
+    echo "[webmention] Starting auto-send polling"
+    # Wait 3 minutes before first run (let Eleventy build complete first)
+    sleep 180
+    while true; do
+        # Read SECRET from file (env var not available in subshell)
+        WEBMENTION_SECRET=$(cat /app/data/config/.secret 2>/dev/null)
+        WEBMENTION_ORIGIN="${CLOUDRON_APP_ORIGIN}"
+
+        if [ -n "$WEBMENTION_SECRET" ]; then
+            # Generate a short-lived JWT token with update scope
+            WEBMENTION_TOKEN=$(cd /app/code && node -e "
+                const jwt = require('jsonwebtoken');
+                const token = jwt.sign(
+                    { me: '$WEBMENTION_ORIGIN', scope: 'update' },
+                    '$WEBMENTION_SECRET',
+                    { expiresIn: '5m' }
+                );
+                console.log(token);
+            " 2>/dev/null)
+
+            if [ -n "$WEBMENTION_TOKEN" ]; then
+                # Call webmention-sender endpoint - this sends webmentions for posts
+                RESULT=$(curl -s -X POST "http://localhost:8080/webmention-sender?token=${WEBMENTION_TOKEN}" \
+                    -H "Content-Type: application/json" 2>&1)
+                echo "[webmention] $(date '+%Y-%m-%d %H:%M:%S') - $RESULT"
+            fi
+        fi
+
+        # Wait 5 minutes before next check
+        sleep 300
+    done
+) &
+
 # Wait for Indiekit process (keeps container running)
 echo "==> All services started, waiting for Indiekit..."
 wait $INDIEKIT_PID

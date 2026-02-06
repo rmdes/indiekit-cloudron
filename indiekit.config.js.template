@@ -68,7 +68,7 @@ export default {
     "@rmdes/indiekit-syndicator-mastodon",
     "@rmdes/indiekit-syndicator-bluesky",
     "@rmdes/indiekit-syndicator-indienews",
-    "@indiekit/endpoint-syndicate",
+    "@rmdes/indiekit-endpoint-syndicate",
     "@indiekit/endpoint-json-feed",
     // Custom endpoints
     "@rmdes/indiekit-endpoint-github",
@@ -79,6 +79,7 @@ export default {
     "@rmdes/indiekit-endpoint-microsub",
     "@rmdes/indiekit-endpoint-webmentions-proxy",
     "@rmdes/indiekit-endpoint-podroll",
+    "@rmdes/indiekit-endpoint-webmention-sender",
     "@indiekit/endpoint-webmention-io",
   ],
 
@@ -95,15 +96,17 @@ export default {
     accessToken: process.env.MASTODON_ACCESS_TOKEN,
     checked: !!process.env.MASTODON_ACCESS_TOKEN,
     syndicateExternalLikes: true, // Post likes of external URLs as statuses
+    syndicateExternalReposts: true, // Post reposts of external URLs as statuses
   },
 
   // Bluesky syndication (optional - configure via env vars)
-  // Custom version that syndicates likes of external URLs as posts
+  // Custom version that syndicates likes and reposts of external URLs as posts
   "@rmdes/indiekit-syndicator-bluesky": {
     handle: process.env.BLUESKY_HANDLE,
     password: process.env.BLUESKY_PASSWORD,
     checked: !!process.env.BLUESKY_PASSWORD,
     syndicateExternalLikes: true, // Post likes of external URLs as posts
+    syndicateExternalReposts: true, // Post reposts of external URLs as posts
   },
 
   // IndieNews syndicator (optional) - submit posts to IndieNews aggregator
