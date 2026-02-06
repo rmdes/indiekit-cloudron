@@ -31,10 +31,12 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/indiekit@${INDIEKIT_VERSION} \
         @indiekit/preset-hugo \
         @indiekit/store-file-system \
-        @rmdes/indiekit-syndicator-mastodon@1.0.4 \
-        @rmdes/indiekit-syndicator-bluesky@1.0.7 \
-        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.27 \
-        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.28 \
+        @rmdes/indiekit-syndicator-mastodon@1.0.5 \
+        @rmdes/indiekit-syndicator-bluesky@1.0.8 \
+        @rmdes/indiekit-syndicator-linkedin@1.0.0 \
+        @rmdes/indiekit-endpoint-linkedin@1.0.0 \
+        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.28 \
+        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.29 \
         @indiekit/endpoint-json-feed \
         @indiekit/endpoint-webmention-io \
         @indiekit/post-type-article \
@@ -49,18 +51,18 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-repost \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video \
-        @rmdes/indiekit-post-type-page@1.0.3 \
-        @rmdes/indiekit-endpoint-github \
-        @rmdes/indiekit-endpoint-funkwhale \
-        @rmdes/indiekit-endpoint-lastfm@1.0.6 \
-        @rmdes/indiekit-endpoint-youtube \
-        @rmdes/indiekit-endpoint-rss@1.0.7 \
-        @rmdes/indiekit-endpoint-microsub \
-        @rmdes/indiekit-endpoint-webmentions-proxy \
-        @rmdes/indiekit-syndicator-indienews \
-        @rmdes/indiekit-endpoint-podroll@1.0.5 \
-        @rmdes/indiekit-endpoint-webmention-sender@1.0.2 \
-        @rmdes/indiekit-preset-eleventy@1.0.0-beta.29
+        @rmdes/indiekit-post-type-page@1.0.4 \
+        @rmdes/indiekit-endpoint-github@1.0.4 \
+        @rmdes/indiekit-endpoint-funkwhale@1.0.8 \
+        @rmdes/indiekit-endpoint-lastfm@1.0.7 \
+        @rmdes/indiekit-endpoint-youtube@1.2.1 \
+        @rmdes/indiekit-endpoint-rss@1.0.8 \
+        @rmdes/indiekit-endpoint-microsub@1.0.12 \
+        @rmdes/indiekit-endpoint-webmentions-proxy@1.0.3 \
+        @rmdes/indiekit-syndicator-indienews@1.0.1 \
+        @rmdes/indiekit-endpoint-podroll@1.0.6 \
+        @rmdes/indiekit-endpoint-webmention-sender@1.0.3 \
+        @rmdes/indiekit-preset-eleventy@1.0.0-beta.30
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build

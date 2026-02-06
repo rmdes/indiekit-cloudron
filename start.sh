@@ -57,6 +57,16 @@ export BLUESKY_PASSWORD=""
 # Mastodon access token (get from Settings > Development > Applications)
 export MASTODON_ACCESS_TOKEN=""
 
+# LinkedIn syndication (for posting to LinkedIn)
+# Option 1: Use OAuth flow at /linkedin (recommended)
+# Option 2: Set access token manually
+export LINKEDIN_ACCESS_TOKEN=""
+export LINKEDIN_AUTHOR_NAME=""
+export LINKEDIN_PROFILE_URL=""
+# LinkedIn OAuth app credentials (get from LinkedIn Developer Portal)
+export LINKEDIN_CLIENT_ID=""
+export LINKEDIN_CLIENT_SECRET=""
+
 # Webmention.io token (get from https://webmention.io/settings)
 export WEBMENTION_IO_TOKEN=""
 

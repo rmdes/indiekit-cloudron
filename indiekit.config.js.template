@@ -13,6 +13,11 @@
  * - MASTODON_ACCESS_TOKEN: Mastodon access token
  * - BLUESKY_HANDLE: Your Bluesky handle (e.g., you.bsky.social)
  * - BLUESKY_PASSWORD: Bluesky app password
+ * - LINKEDIN_ACCESS_TOKEN: LinkedIn access token (or use OAuth flow at /linkedin)
+ * - LINKEDIN_AUTHOR_NAME: Your name on LinkedIn
+ * - LINKEDIN_PROFILE_URL: Your LinkedIn profile URL
+ * - LINKEDIN_CLIENT_ID: LinkedIn OAuth app Client ID
+ * - LINKEDIN_CLIENT_SECRET: LinkedIn OAuth app Client Secret
  *
  * Optional integrations:
  * - GITHUB_USERNAME: GitHub username for activity display
@@ -67,6 +72,8 @@ export default {
     // Syndicators (custom versions with external like support)
     "@rmdes/indiekit-syndicator-mastodon",
     "@rmdes/indiekit-syndicator-bluesky",
+    "@rmdes/indiekit-syndicator-linkedin",
+    "@rmdes/indiekit-endpoint-linkedin",
     "@rmdes/indiekit-syndicator-indienews",
     "@rmdes/indiekit-endpoint-syndicate",
     "@indiekit/endpoint-json-feed",
@@ -107,6 +114,23 @@ export default {
     checked: !!process.env.BLUESKY_PASSWORD,
     syndicateExternalLikes: true, // Post likes of external URLs as posts
     syndicateExternalReposts: true, // Post reposts of external URLs as posts
+  },
+
+  // LinkedIn syndication (optional - configure via env vars)
+  // Posts notes and articles to LinkedIn
+  "@rmdes/indiekit-syndicator-linkedin": {
+    accessToken: process.env.LINKEDIN_ACCESS_TOKEN,
+    authorName: process.env.LINKEDIN_AUTHOR_NAME,
+    authorProfileUrl: process.env.LINKEDIN_PROFILE_URL,
+    checked: !!process.env.LINKEDIN_ACCESS_TOKEN,
+  },
+
+  // LinkedIn OAuth endpoint - manages access tokens via OAuth flow
+  // Visit /linkedin to connect your account
+  "@rmdes/indiekit-endpoint-linkedin": {
+    mountPath: "/linkedin",
+    clientId: process.env.LINKEDIN_CLIENT_ID,
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
   },
 
   // IndieNews syndicator (optional) - submit posts to IndieNews aggregator
