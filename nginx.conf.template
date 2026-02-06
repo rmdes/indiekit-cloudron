@@ -245,6 +245,9 @@ http {
         location = /feed {
             return 301 https://$host/feed.xml;
         }
+        location = /feed/ {
+            return 301 https://$host/feed.xml;
+        }
 
         # Redirect /admin to Indiekit's session login with redirect to dashboard
         location = /admin {
