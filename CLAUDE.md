@@ -16,7 +16,7 @@ This is a Cloudron-packaged version of Indiekit (IndieWeb server) combined with 
 
 The `eleventy-site/` directory is a **Git submodule** pointing to the separate theme repository:
 
-- **Submodule repo:** `indiekit-eleventy-theme` (`/home/rick/code/indiekit-eleventy-theme`)
+- **Submodule repo:** `indiekit-eleventy-theme` (`/home/rick/code/indiekit-dev/indiekit-eleventy-theme`)
 - **GitHub:** https://github.com/rmdes/indiekit-eleventy-theme
 
 ### Submodule Sync Workflow
@@ -41,7 +41,7 @@ cloudron update --app rmendes.net
 
 If you need to modify the Eleventy theme:
 
-1. **Work in the theme repo** (`/home/rick/code/indiekit-eleventy-theme`)
+1. **Work in the theme repo** (`/home/rick/code/indiekit-dev/indiekit-eleventy-theme`)
 2. Commit and push changes there
 3. **Return to this repo** and update the submodule (commands above)
 4. Rebuild and deploy
@@ -500,6 +500,36 @@ When modifying this app, verify:
 | _data/*.js | All use `export default`, not `module.exports` |
 | nginx.conf | Serves from /app/data/site, proxies /admin to port 8080 |
 
+## CRITICAL: Behavioral Rules
+
+### NEVER disable, remove, or comment out functionality to "fix" a problem
+
+If something is broken, find and fix the root cause. Do NOT:
+- Disable a plugin/tool to avoid an error it causes
+- Remove a layout/template to avoid a rendering issue
+- Comment out image processing to skip missing-file errors
+- Remove UI elements (sidebar, widgets, navigation) because they have a bug
+- Delete content or features without explicit user approval
+
+If the fix is not clear, investigate deeper or ask the user. Destructive shortcuts are never acceptable.
+
+### NEVER edit files in the wrong repo
+
+- **Theme files**: Edit in `indiekit-eleventy-theme/`, NOT in `indiekit-cloudron/eleventy-site/` (submodule)
+- **Plugin code**: Edit in the standalone `indiekit-endpoint-*/` or `indiekit-syndicator-*/` repos, NOT in `indiekit/packages/` (upstream fork)
+- After editing the source, propagate changes (submodule update, npm publish, cloudron build)
+
+### Plugin update workflow (MUST follow in order)
+
+1. Edit plugin in its standalone repo
+2. Bump version in `package.json`
+3. Commit and push the plugin repo
+4. **STOP** — tell the user to run `npm publish` (requires OTP)
+5. **Wait** for user to confirm publish is done
+6. Update Dockerfile in `indiekit-cloudron/` if version changed
+7. Update config files if needed (both `.template` AND `.rmendes`)
+8. `cloudron build --no-cache && cloudron update --app rmendes.net`
+
 ## Anti-Patterns (NEVER DO)
 
 1. ❌ `docker build` - Use `cloudron build`
@@ -512,6 +542,11 @@ When modifying this app, verify:
 8. ❌ Referencing `/app/code/node_modules/.bin/eleventy` for Eleventy
 9. ❌ Not clearing `/app/data/site` before Eleventy build - stale files cause errors
 10. ❌ Using `blog.rmendes.net` instead of `rmendes.net` - this is the production domain
+11. ❌ Disabling/removing features to work around bugs - find the root cause
+12. ❌ Editing theme files in `eleventy-site/` submodule instead of `indiekit-eleventy-theme/`
+13. ❌ Editing plugin code in `indiekit/packages/` instead of standalone `indiekit-endpoint-*/` repos
+14. ❌ Running `cloudron build` before user confirms `npm publish` is done
+15. ❌ Publishing to npm without bumping the version first
 
 ## Data Corruption Recovery
 
@@ -544,6 +579,18 @@ After fixing data issues, trigger a manual rebuild:
 ```bash
 cloudron exec --app rmendes.net -- bash -c "rm -rf /app/data/site/* && cd /app/pkg/eleventy-site && ./node_modules/.bin/eleventy --output=/app/data/site"
 ```
+
+## Workspace Context
+
+This repo is part of the Indiekit development workspace at `/home/rick/code/indiekit-dev/`. See the workspace CLAUDE.md for the full repository map and relationships between all repos.
+
+## Related Repositories (all under `/home/rick/code/indiekit-dev/`)
+
+- **indiekit/** - Upstream Indiekit fork (Lerna monorepo)
+- **indiekit-eleventy-theme/** - Eleventy theme (this repo's submodule)
+- **indiekit-endpoint-*/** - Custom endpoint plugins (`@rmdes/*`)
+- **indiekit-post-type-page/** - Page post type plugin
+- **indiekit-syndicator-*/** - Custom syndicator plugins (`@rmdes/*`)
 
 ## References
 
