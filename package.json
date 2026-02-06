@@ -4,7 +4,8 @@
   "description": "Indiekit deployment for Cloudron",
   "overrides": {
     "@indiekit/endpoint-auth": "npm:@rmdes/indiekit-endpoint-auth@^1.0.0-beta.25",
-    "@indiekit/endpoint-posts": "npm:@rmdes/indiekit-endpoint-posts@^1.0.0-beta.25",
-    "@indiekit/endpoint-micropub": "npm:@rmdes/indiekit-endpoint-micropub@^1.0.0-beta.26"
+    "@indiekit/endpoint-posts": "npm:@rmdes/indiekit-endpoint-posts@^1.0.0-beta.27",
+    "@indiekit/endpoint-micropub": "npm:@rmdes/indiekit-endpoint-micropub@^1.0.0-beta.26",
+    "@indiekit/endpoint-syndicate": "npm:@rmdes/indiekit-endpoint-syndicate@^1.0.0-beta.28"
   }
 }
