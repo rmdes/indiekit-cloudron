@@ -87,6 +87,7 @@ export default {
     "@rmdes/indiekit-endpoint-webmentions-proxy",
     "@rmdes/indiekit-endpoint-podroll",
     "@rmdes/indiekit-endpoint-webmention-sender",
+    "@rmdes/indiekit-endpoint-blogroll",
     "@indiekit/endpoint-webmention-io",
   ],
 
@@ -229,6 +230,15 @@ export default {
     opmlUrl: process.env.PODROLL_OPML_URL,
     syncInterval: 900_000, // 15 minutes
     maxEpisodes: 100,
+  },
+
+  // Blogroll endpoint (optional)
+  // Aggregates blogs from OPML sources and RSS feeds
+  // Admin dashboard at /blogroll/, public API at /blogroll/api/*
+  "@rmdes/indiekit-endpoint-blogroll": {
+    mountPath: "/blogroll",
+    syncInterval: 900_000, // 15 minutes
+    maxItemAge: 7, // Keep items for 7 days to encourage fresh discovery
   },
 
   // Webmention.io integration (optional)
