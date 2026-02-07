@@ -62,8 +62,8 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-syndicator-indienews@1.0.1 \
         @rmdes/indiekit-endpoint-podroll@1.0.6 \
         @rmdes/indiekit-endpoint-webmention-sender@1.0.3 \
-        @rmdes/indiekit-endpoint-blogroll@1.0.0 \
-        @rmdes/indiekit-preset-eleventy@1.0.0-beta.30
+        @rmdes/indiekit-endpoint-blogroll@1.0.3 \
+        @rmdes/indiekit-preset-eleventy@1.0.0-beta.31
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
