@@ -487,6 +487,71 @@ cloudron exec --app rmendes.net -- bash -c "cd /app/pkg/eleventy-site && ./node_
 cloudron exec --app rmendes.net -- bash -c "cd /app/pkg/eleventy-site && ./node_modules/.bin/eleventy --version"
 ```
 
+## MongoDB Access
+
+**IMPORTANT:** Use `CLOUDRON_MONGODB_URL` (NOT `MONGODB_URL`) to connect to MongoDB in the Cloudron container.
+
+### Quick MongoDB Query
+
+```bash
+# Run a MongoDB query on the live site
+cloudron exec --app rmendes.net -- bash -c 'mongosh "$CLOUDRON_MONGODB_URL" --quiet --eval "
+  // Your JavaScript query here
+  db.collectionName.find({}).limit(5).toArray()
+"'
+```
+
+### Common Collections
+
+| Collection | Description |
+|------------|-------------|
+| `blogrollBlogs` | Blog entries for the blogroll |
+| `blogrollItems` | Individual posts from blogs |
+| `blogrollSources` | OPML/Microsub sources |
+| `microsub_feeds` | Microsub feed subscriptions |
+| `microsub_items` | Items from Microsub feeds |
+| `microsub_channels` | Microsub channels |
+| `posts` | Indiekit posts |
+
+### Example Queries
+
+```bash
+# Count documents in a collection
+cloudron exec --app rmendes.net -- bash -c 'mongosh "$CLOUDRON_MONGODB_URL" --quiet --eval "
+  db.blogrollBlogs.countDocuments({})
+"'
+
+# Find blogs with error status
+cloudron exec --app rmendes.net -- bash -c 'mongosh "$CLOUDRON_MONGODB_URL" --quiet --eval "
+  db.blogrollBlogs.find({status: \"error\"}).toArray()
+"'
+
+# Delete documents matching a query
+cloudron exec --app rmendes.net -- bash -c 'mongosh "$CLOUDRON_MONGODB_URL" --quiet --eval "
+  db.blogrollBlogs.deleteMany({status: \"error\", microsubFeedId: null})
+"'
+
+# Update documents
+cloudron exec --app rmendes.net -- bash -c 'mongosh "$CLOUDRON_MONGODB_URL" --quiet --eval "
+  db.blogrollBlogs.updateMany({status: \"error\"}, {\\\$set: {status: \"active\"}})
+"'
+```
+
+### Environment Variables
+
+MongoDB connection details are available via these environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `CLOUDRON_MONGODB_URL` | Full connection string (use this!) |
+| `CLOUDRON_MONGODB_HOST` | MongoDB hostname (`mongodb`) |
+| `CLOUDRON_MONGODB_PORT` | MongoDB port (`27017`) |
+| `CLOUDRON_MONGODB_DATABASE` | Database name |
+| `CLOUDRON_MONGODB_USERNAME` | Username |
+| `CLOUDRON_MONGODB_PASSWORD` | Password |
+
+**Note:** The Indiekit config uses `process.env.MONGODB_URL` which is mapped from `CLOUDRON_MONGODB_URL` in the start.sh script.
+
 ## File Checklist for Changes
 
 When modifying this app, verify:
