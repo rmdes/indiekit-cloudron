@@ -180,7 +180,7 @@ http {
         }
 
         # Blogroll endpoint (Indiekit plugin) - admin UI and public API
-        location /blogroll {
+        location /blogrollapi {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;

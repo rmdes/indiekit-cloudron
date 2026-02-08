@@ -234,9 +234,9 @@ export default {
 
   // Blogroll endpoint (optional)
   // Aggregates blogs from OPML sources and RSS feeds
-  // Admin dashboard at /blogroll/, public API at /blogroll/api/*
+  // Admin dashboard at /blogrollapi/, public API at /blogrollapi/api/*
   "@rmdes/indiekit-endpoint-blogroll": {
-    mountPath: "/blogroll",
+    mountPath: "/blogrollapi",
     syncInterval: 900_000, // 15 minutes
     maxItemAge: 7, // Keep items for 7 days to encourage fresh discovery
   },
