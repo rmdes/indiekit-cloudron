@@ -84,13 +84,12 @@ export default {
     "@rmdes/indiekit-endpoint-youtube",
     "@rmdes/indiekit-endpoint-rss",
     "@rmdes/indiekit-endpoint-microsub",
-    "@rmdes/indiekit-endpoint-webmentions-proxy",
+    "@rmdes/indiekit-endpoint-webmention-io",
     "@rmdes/indiekit-endpoint-podroll",
     "@rmdes/indiekit-endpoint-webmention-sender",
     "@rmdes/indiekit-endpoint-blogroll",
     "@rmdes/indiekit-endpoint-homepage",
     "@rmdes/indiekit-endpoint-cv",
-    "@indiekit/endpoint-webmention-io",
   ],
 
   // Local file storage - persisted in /app/data/content
@@ -213,14 +212,14 @@ export default {
     maxConcurrentFetches: 3,
   },
 
-  // Webmentions proxy endpoint (optional)
-  // Accessible at /webmentions-api/api/mentions - powers the /interactions/ page
-  // Proxies webmention.io API with server-side token for real-time fetching
-  "@rmdes/indiekit-endpoint-webmentions-proxy": {
-    mountPath: "/webmentions-api",
+  // Webmention moderation endpoint
+  // MongoDB-backed webmention cache with blocklist, privacy removal, and public API
+  // Admin dashboard at /webmentions, public API at /webmentions/api/mentions
+  "@rmdes/indiekit-endpoint-webmention-io": {
     token: process.env.WEBMENTION_IO_TOKEN,
     domain: process.env.SITE_URL?.replace(/^https?:\/\//, "").replace(/\/$/, ""),
-    cacheTtl: 60, // 1 minute
+    syncInterval: 900_000, // 15 minutes
+    cacheTtl: 60,
   },
 
   // Podroll endpoint (optional)
@@ -257,9 +256,4 @@ export default {
     mountPath: "/cv",
   },
 
-  // Webmention.io integration (optional)
-  // Get token from https://webmention.io/settings
-  "@indiekit/endpoint-webmention-io": {
-    token: process.env.WEBMENTION_IO_TOKEN,
-  },
 };
