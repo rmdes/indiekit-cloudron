@@ -140,14 +140,17 @@ plugins: [
 
 **ALWAYS use `@rmdes/indiekit-preset-eleventy`, NEVER `@indiekit/preset-eleventy`!**
 
-The fork fixes URL generation:
-- Original: Deletes `url` property → Eleventy generates URLs from file paths
-- Fork: Converts `url` to `permalink` → URLs match what Indiekit stores
+The fork removes the `url` property from post frontmatter (via `delete properties.url`) to let Eleventy generate URLs from file paths. nginx rewrite rules map Indiekit's URL format to Eleventy's file-path-based format.
 
-Without this fix:
-- Indiekit stores: `/likes/2026/01/30/slug`
-- Eleventy generates: `/content/likes/2026-01-30-slug/`
-- Result: Syndication fails, webmentions broken, 404 errors
+How it works:
+- Indiekit stores URLs as: `/likes/2026/01/30/slug`
+- Eleventy generates HTML at: `/content/likes/2026-01-30-slug/` (from file path)
+- nginx rewrites: `/likes/2026/01/30/slug` → `/content/likes/2026-01-30-slug/`
+- Result: Posts are accessible at their Indiekit URLs via nginx rewrites
+
+Without this preset, Eleventy would try to use Indiekit's `url` directly, conflicting with nginx rewrites and causing 404 errors.
+
+**History:** Beta.35 (Feb 2026) removed the `permalink` property entirely. Earlier versions tried adding `permalink` to frontmatter, but this conflicted with nginx rewrites. The current approach (just delete url) is correct.
 
 ## CRITICAL: nginx Configuration
 
