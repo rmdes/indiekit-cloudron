@@ -189,8 +189,16 @@ fi
 
 # Build Eleventy site from /app/pkg/eleventy-site (where node_modules lives)
 # Symlinks in Dockerfile point content/_site/.cache to /app/data
-echo "==> Clearing stale site files"
+echo "==> Clearing stale site files (preserving pagefind for instant search)"
+# Preserve pagefind index from previous build so search works during rebuild (~9 min)
+if [ -d /app/data/site/pagefind ]; then
+    mv /app/data/site/pagefind /tmp/pagefind-preserve
+fi
 rm -rf /app/data/site/*
+if [ -d /tmp/pagefind-preserve ]; then
+    mv /tmp/pagefind-preserve /app/data/site/pagefind
+    chown -R cloudron:cloudron /app/data/site/pagefind
+fi
 
 echo "==> Clearing Eleventy fetch cache (force fresh API data)"
 rm -rf /app/data/cache/eleventy-fetch-*
