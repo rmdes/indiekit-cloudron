@@ -68,6 +68,28 @@ An IndieWeb-ready blog platform for [Cloudron](https://cloudron.io). Deploy your
    - Edit `/app/data/config/env.sh` with your API tokens
    - Restart the app
 
+### Using the Pre-built Image (skip the build)
+
+A pre-built image is published to Docker Hub at [`rmdes/indiekit-cloudron`](https://hub.docker.com/r/rmdes/indiekit-cloudron), tagged with both `latest` and the upstream Indiekit version (e.g. `1.0.0-beta.25`).
+
+To install on Cloudron without building locally:
+
+```bash
+cloudron install --image rmdes/indiekit-cloudron:latest --app yourdomain.com
+```
+
+Or to update an existing installation:
+
+```bash
+cloudron update --image rmdes/indiekit-cloudron:latest --app yourdomain.com
+```
+
+To pin a specific version:
+
+```bash
+cloudron install --image rmdes/indiekit-cloudron:1.0.0-beta.25 --app yourdomain.com
+```
+
 ## Configuration
 
 ### Environment Variables
