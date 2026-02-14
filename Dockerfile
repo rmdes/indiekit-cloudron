@@ -87,9 +87,13 @@ RUN rm -rf /app/pkg/eleventy-site/content && ln -s /app/data/content /app/pkg/el
     rm -rf /app/pkg/eleventy-site/.cache && ln -s /app/data/cache /app/pkg/eleventy-site/.cache && \
     ln -s /app/data/uploads /app/pkg/eleventy-site/uploads
 
-# Increase rate limit from 250 to 2000 requests per 15 minutes
-# The upstream default (250) is too low for active admin use (editing, media browsing, autosave)
-RUN sed -i 's/max: 250/max: 2000/' /app/code/node_modules/@indiekit/indiekit/lib/routes.js
+# Patch routes.js: remove rate limiting from authenticated routes
+# Upstream applies the same rate limiter to ALL routes. Authenticated routes (after
+# indieauth.authenticate()) are already protected by auth — rate limiting them causes
+# 429 errors during normal admin browsing, especially behind reverse proxies where
+# all clients share a single IP. Rate limiting is kept on session routes (brute force)
+# and public/well-known endpoints (abuse protection).
+COPY patches/routes.js /app/code/node_modules/@indiekit/indiekit/lib/routes.js
 
 ENV NODE_ENV=production
 
