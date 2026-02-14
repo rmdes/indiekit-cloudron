@@ -144,6 +144,33 @@ push-env:
 restart:
 	cloudron restart --app $(APP)
 
+# ─── Docker Hub ───
+
+# Docker Hub image name
+CLOUDRON_IMAGE := rmdes/indiekit-cloudron
+UPSTREAM_VERSION := $(shell node -p "require('./CloudronManifest.json').upstreamVersion")
+
+# Build Docker image for Docker Hub (NOT cloudron build)
+.PHONY: docker-build
+docker-build: init prepare
+	docker build --no-cache -t $(CLOUDRON_IMAGE):latest -t $(CLOUDRON_IMAGE):$(UPSTREAM_VERSION) .
+
+# Push to Docker Hub
+.PHONY: docker-push
+docker-push:
+	docker push $(CLOUDRON_IMAGE):latest
+	docker push $(CLOUDRON_IMAGE):$(UPSTREAM_VERSION)
+
+# Full release to Docker Hub
+.PHONY: docker-release
+docker-release: docker-build docker-push
+	@echo "==> Released $(UPSTREAM_VERSION) to Docker Hub"
+
+# Show upstream version
+.PHONY: docker-version
+docker-version:
+	@echo $(UPSTREAM_VERSION)
+
 # Show help
 .PHONY: help
 help:
@@ -153,11 +180,17 @@ help:
 	@echo "  make init         Initialize git submodules (first time)"
 	@echo "  make theme-update Update theme submodule to latest"
 	@echo ""
-	@echo "Build & Deploy:"
+	@echo "Build & Deploy (Cloudron):"
 	@echo "  make build        Apply overrides and build Docker image (no cache)"
 	@echo "  make build-cached Apply overrides and build (with cache)"
 	@echo "  make deploy       Build and deploy to Cloudron (APP=$(APP))"
 	@echo "  make update       Deploy without rebuild"
+	@echo ""
+	@echo "Docker Hub:"
+	@echo "  make docker-build   Build image for Docker Hub"
+	@echo "  make docker-push    Push image to Docker Hub"
+	@echo "  make docker-release Build + push to Docker Hub"
+	@echo "  make docker-version Show upstream version"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make prepare      Apply personal overrides without building"
