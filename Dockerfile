@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=222
+ARG CACHE_BUST=223
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -86,6 +86,10 @@ RUN rm -rf /app/pkg/eleventy-site/content && ln -s /app/data/content /app/pkg/el
     rm -rf /app/pkg/eleventy-site/images/user && mkdir -p /app/pkg/eleventy-site/images && ln -s /app/data/images /app/pkg/eleventy-site/images/user && \
     rm -rf /app/pkg/eleventy-site/.cache && ln -s /app/data/cache /app/pkg/eleventy-site/.cache && \
     ln -s /app/data/uploads /app/pkg/eleventy-site/uploads
+
+# Increase rate limit from 250 to 2000 requests per 15 minutes
+# The upstream default (250) is too low for active admin use (editing, media browsing, autosave)
+RUN sed -i 's/max: 250/max: 2000/' /app/code/node_modules/@indiekit/indiekit/lib/routes.js
 
 ENV NODE_ENV=production
 
