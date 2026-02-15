@@ -108,7 +108,15 @@ export const routes = (Indiekit) => {
     }
 
     if (endpoint.mountPath && endpoint.routesPublic) {
-      router.use(endpoint.mountPath, limit, endpoint.routesPublic);
+      // Skip rate limiting for root-mounted endpoints (mountPath "/") because
+      // router.use("/", limit, ...) matches ALL routes, applying the rate
+      // limiter globally. This caused 429 errors on authenticated routes
+      // (e.g. endpoint-json-feed mounts routesPublic at "/").
+      if (endpoint.mountPath === "/") {
+        router.use(endpoint.mountPath, endpoint.routesPublic);
+      } else {
+        router.use(endpoint.mountPath, limit, endpoint.routesPublic);
+      }
     }
 
     if (endpoint.routesWellKnown) {
