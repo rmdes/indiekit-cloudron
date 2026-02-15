@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=225
+ARG CACHE_BUST=227
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -64,7 +64,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-blogroll@1.0.18 \
         @rmdes/indiekit-endpoint-homepage@1.0.14 \
         @rmdes/indiekit-endpoint-cv@1.0.13 \
-        @rmdes/indiekit-preset-eleventy@1.0.0-beta.36 \
+        @rmdes/indiekit-preset-eleventy@1.0.0-beta.37 \
         @rmdes/indiekit-endpoint-files@1.0.0
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
@@ -94,6 +94,12 @@ RUN rm -rf /app/pkg/eleventy-site/content && ln -s /app/data/content /app/pkg/el
 # all clients share a single IP. Rate limiting is kept on session routes (brute force)
 # and public/well-known endpoints (abuse protection).
 COPY patches/routes.js /app/code/node_modules/@indiekit/indiekit/lib/routes.js
+
+# Patch error.js: suppress stack traces in production
+# Upstream exposes full stack traces in both HTML and JSON error responses,
+# leaking internal file paths and dependency versions. This patch only includes
+# stack traces when NODE_ENV !== "production".
+COPY patches/error.js /app/code/node_modules/@indiekit/indiekit/lib/middleware/error.js
 
 ENV NODE_ENV=production
 

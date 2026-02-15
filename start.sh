@@ -271,11 +271,12 @@ echo "==> Starting syndication background process"
 
         if [ -n "$SYNDICATION_SECRET" ]; then
             # Generate a short-lived JWT token with update scope
-            SYNDICATION_TOKEN=$(cd /app/code && node -e "
+            # Uses env vars instead of shell interpolation to prevent injection
+            SYNDICATION_TOKEN=$(cd /app/code && JWT_ORIGIN="$SYNDICATION_ORIGIN" JWT_SECRET="$SYNDICATION_SECRET" node -e "
                 const jwt = require('jsonwebtoken');
                 const token = jwt.sign(
-                    { me: '$SYNDICATION_ORIGIN', scope: 'update' },
-                    '$SYNDICATION_SECRET',
+                    { me: process.env.JWT_ORIGIN, scope: 'update' },
+                    process.env.JWT_SECRET,
                     { expiresIn: '5m' }
                 );
                 console.log(token);
@@ -308,11 +309,12 @@ echo "==> Starting webmention sender background process"
 
         if [ -n "$WEBMENTION_SECRET" ]; then
             # Generate a short-lived JWT token with update scope
-            WEBMENTION_TOKEN=$(cd /app/code && node -e "
+            # Uses env vars instead of shell interpolation to prevent injection
+            WEBMENTION_TOKEN=$(cd /app/code && JWT_ORIGIN="$WEBMENTION_ORIGIN" JWT_SECRET="$WEBMENTION_SECRET" node -e "
                 const jwt = require('jsonwebtoken');
                 const token = jwt.sign(
-                    { me: '$WEBMENTION_ORIGIN', scope: 'update' },
-                    '$WEBMENTION_SECRET',
+                    { me: process.env.JWT_ORIGIN, scope: 'update' },
+                    process.env.JWT_SECRET,
                     { expiresIn: '5m' }
                 );
                 console.log(token);
