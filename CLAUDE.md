@@ -252,6 +252,59 @@ Runtime (writable, backed up):
 2. **Eleventy (watcher)** - Rebuilds site when content changes
 3. **Indiekit (port 8080)** - Handles Micropub, authentication, admin UI
 
+## Security Hardening
+
+### Patches Applied to Upstream
+
+Two files in `patches/` are copied over upstream Indiekit files during Docker build:
+
+| Patch | Target | Purpose |
+|-------|--------|---------|
+| `patches/routes.js` | `node_modules/@indiekit/indiekit/lib/routes.js` | Remove rate limiting from authenticated routes (prevents 429 behind reverse proxy) |
+| `patches/error.js` | `node_modules/@indiekit/indiekit/lib/middleware/error.js` | Suppress stack traces in production (prevents info leakage) |
+
+When upstream Indiekit updates, diff the new files against our patches and re-apply the same principles.
+
+### nginx Security Headers
+
+Added in `nginx.conf.template` / `nginx.conf.rmendes`:
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| `X-Content-Type-Options` | `nosniff` | Prevent MIME-type sniffing |
+| `X-Frame-Options` | `SAMEORIGIN` | Prevent clickjacking |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Limit referrer leakage |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Disable unused browser APIs |
+| `Content-Security-Policy` | See below | Restrict resource loading |
+
+### CRITICAL: CSP and External Scripts
+
+The Content-Security-Policy header MUST allow `https://cdn.jsdelivr.net` in `script-src` and `style-src` because the Eleventy theme loads Alpine.js and lite-youtube-embed from this CDN.
+
+**Current CSP:**
+```
+default-src 'self';
+script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+img-src 'self' data: https:;
+media-src 'self' https:;
+font-src 'self';
+frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;
+connect-src 'self';
+base-uri 'self';
+form-action 'self'
+```
+
+**Lesson learned:** The initial CSP (Feb 2026) omitted `cdn.jsdelivr.net`, which blocked Alpine.js from loading. Without Alpine.js, the FAB (Floating Action Button) didn't initialize, making it appear that login detection was broken. The auth check (`admin.js`) worked fine — it dispatched the `indiekit:auth` event — but Alpine.js wasn't loaded to listen for it.
+
+**When adding new CDN dependencies to the theme:** Update the CSP in BOTH `nginx.conf.template` AND `nginx.conf.rmendes`, and remember to run `make prepare` before building.
+
+### JWT Injection Prevention in start.sh
+
+The syndication and webmention background processes generate JWT tokens. The original code used shell interpolation (`'$VARIABLE'`) to inject values into Node.js code, which could allow injection if the variable values contained special characters.
+
+**Fix:** Environment variables are passed via `JWT_ORIGIN="$VAR" JWT_SECRET="$VAR" node -e "..."` and read with `process.env.JWT_ORIGIN` inside the Node.js code, eliminating shell injection risk.
+
 ## Critical Patterns (MUST FOLLOW)
 
 ### 1. Symlinks MUST Be Created in Dockerfile
