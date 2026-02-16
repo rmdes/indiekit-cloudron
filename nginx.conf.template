@@ -304,7 +304,10 @@ http {
         }
 
         # Indiekit image resizing endpoint (thumbnails for /files and /posts)
-        location /image {
+        # IMPORTANT: Must be /image/ (with trailing slash) not /image
+        # Without slash, nginx prefix-matches /images/* too, proxying static
+        # files like /images/default-avatar.svg to Indiekit → auth redirect loop
+        location /image/ {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Forwarded-Proto https;
