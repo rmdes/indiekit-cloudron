@@ -171,6 +171,17 @@ docker-release: docker-build docker-push
 docker-version:
 	@echo $(UPSTREAM_VERSION)
 
+# ─── CI/CD ───
+
+# Trigger GitHub Actions build from local machine
+.PHONY: ci
+ci:
+	gh workflow run build-image.yml
+
+.PHONY: ci-status
+ci-status:
+	gh run list --workflow=build-image.yml --limit=5
+
 # Show help
 .PHONY: help
 help:
@@ -186,11 +197,15 @@ help:
 	@echo "  make deploy       Build and deploy to Cloudron (APP=$(APP))"
 	@echo "  make update       Deploy without rebuild"
 	@echo ""
-	@echo "Docker Hub:"
+	@echo "Docker Hub (manual):"
 	@echo "  make docker-build   Build image for Docker Hub"
 	@echo "  make docker-push    Push image to Docker Hub"
 	@echo "  make docker-release Build + push to Docker Hub"
 	@echo "  make docker-version Show upstream version"
+	@echo ""
+	@echo "CI/CD (GitHub Actions):"
+	@echo "  make ci             Trigger image build workflow"
+	@echo "  make ci-status      Show recent workflow runs"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make prepare      Apply personal overrides without building"

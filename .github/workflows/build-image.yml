@@ -1,0 +1,86 @@
+name: Build & Push Docker Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: "Override version tag (leave empty to use CloudronManifest.json)"
+        required: false
+        type: string
+
+env:
+  REGISTRY_GHCR: ghcr.io
+  REGISTRY_DH: docker.io
+  IMAGE: rmdes/indiekit-cloudron
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Prepare generic config
+        run: |
+          # Copy .template files to their runtime names (no .rmendes in CI)
+          cp nginx.conf.template nginx.conf
+          cp redirects.map.template redirects.map
+          cp old-blog-redirects.map.template old-blog-redirects.map
+          cp indiekit.config.js.template indiekit.config.js
+          # Create empty migrated-content so Dockerfile COPY doesn't fail
+          mkdir -p migrated-content
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version
+        id: version
+        env:
+          VERSION_OVERRIDE: ${{ inputs.version_override }}
+        run: |
+          if [ -n "$VERSION_OVERRIDE" ]; then
+            echo "tag=${VERSION_OVERRIDE}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(node -p "require('./CloudronManifest.json').upstreamVersion")
+            echo "tag=${VERSION}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_DH }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGISTRY_DH }}/${{ env.IMAGE }}:latest
+            ${{ env.REGISTRY_DH }}/${{ env.IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY_DH }}/${{ env.IMAGE }}:sha-${{ steps.version.outputs.sha }}
+            ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE }}:latest
+            ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE }}:sha-${{ steps.version.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
