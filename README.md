@@ -40,37 +40,16 @@ An IndieWeb-ready blog platform for [Cloudron](https://cloudron.io). Deploy your
 
 ## Installation
 
-### Quick Start
+### Using the Pre-built Image (recommended)
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/indiekit-cloudron.git
-   cd indiekit-cloudron
-   ```
+A pre-built image is automatically published on every commit to both Docker Hub and GitHub Container Registry:
 
-2. (Optional) Create personal overrides for your deployment:
-   ```bash
-   # Copy templates to create your personal config files
-   cp nginx.conf.template nginx.conf.rmendes
-   cp indiekit.config.js.template indiekit.config.js.rmendes
-   # Edit .rmendes files with your personal values
-   ```
+| Registry | Image |
+|----------|-------|
+| Docker Hub | [`rmdes/indiekit-cloudron`](https://hub.docker.com/r/rmdes/indiekit-cloudron) |
+| GHCR | `ghcr.io/rmdes/indiekit-cloudron` |
 
-3. Build and install:
-   ```bash
-   make deploy APP=yourdomain.com
-   # Or without Makefile:
-   # cloudron build && cloudron install --app yourdomain.com
-   ```
-
-4. Configure secrets in Cloudron:
-   - SSH into container: `make shell` (or `cloudron exec --app yourdomain.com`)
-   - Edit `/app/data/config/env.sh` with your API tokens
-   - Restart the app
-
-### Using the Pre-built Image (skip the build)
-
-A pre-built image is published to Docker Hub at [`rmdes/indiekit-cloudron`](https://hub.docker.com/r/rmdes/indiekit-cloudron), tagged with both `latest` and the upstream Indiekit version (e.g. `1.0.0-beta.25`).
+Images are tagged `:latest`, `:VERSION` (e.g. `1.0.0-beta.25`), and `:sha-SHORT`.
 
 To install on Cloudron without building locally:
 
@@ -78,7 +57,7 @@ To install on Cloudron without building locally:
 cloudron install --image rmdes/indiekit-cloudron:latest --app yourdomain.com
 ```
 
-Or to update an existing installation:
+To update an existing installation:
 
 ```bash
 cloudron update --image rmdes/indiekit-cloudron:latest --app yourdomain.com
@@ -90,11 +69,34 @@ To pin a specific version:
 cloudron install --image rmdes/indiekit-cloudron:1.0.0-beta.25 --app yourdomain.com
 ```
 
+### Building Locally
+
+If you want to customize the image before deploying:
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/rmdes/indiekit-cloudron.git
+   cd indiekit-cloudron
+   ```
+
+2. Build and install:
+   ```bash
+   make deploy APP=yourdomain.com
+   # Or without Makefile:
+   # cloudron build && cloudron install --app yourdomain.com
+   ```
+
+### First-Run Configuration
+
+1. SSH into the container: `cloudron exec --app yourdomain.com`
+2. Edit `/app/data/config/env.sh` with your API tokens and site settings
+3. Restart the app: `cloudron restart --app yourdomain.com`
+
 ## Configuration
 
 ### Environment Variables
 
-All configuration is done via environment variables. Copy `env.example` to `env.sh` and fill in your values.
+All configuration is done via environment variables in `/app/data/config/env.sh`. Copy `env.example` as a reference.
 
 #### Required Variables
 
@@ -113,33 +115,15 @@ See [env.example](env.example) for all options:
 - Webmentions (webmention.io token)
 - Integrations (GitHub, Funkwhale, YouTube)
 
-### Personal Configuration Overrides
-
-For personal deployments, you can override template files without modifying the repo. Create files with `.rmendes` suffix (or any suffix you choose) - these are gitignored but applied during Docker build.
-
-| Template | Override | Purpose |
-|----------|----------|---------|
-| `nginx.conf.template` | `nginx.conf.rmendes` | Custom nginx config, legacy URL redirects |
-| `redirects.map` (empty) | `redirects.map.rmendes` | Legacy URL mappings (e.g., micro.blog) |
-| `old-blog-redirects.map` (empty) | `old-blog-redirects.map.rmendes` | Old blog URL mappings |
-| `eleventy-site/_data/cv.js` | `eleventy-site/_data/cv.js.rmendes` | Personal CV/resume data |
-| `indiekit.config.js.template` | `indiekit.config.js.rmendes` | Personal Indiekit config (syndicators, integrations) |
-
-The Dockerfile automatically:
-1. Uses templates as defaults for fresh installs
-2. Applies `.rmendes` overrides if they exist
-3. Creates empty placeholder files where needed
-
 ### Legacy URL Redirects
 
-If migrating from another platform (micro.blog, Known, WordPress), you can set up redirects:
+If migrating from another platform (micro.blog, Known, WordPress), you can set up redirects in `redirects.map`:
 
-1. Create `redirects.map.rmendes` with mappings:
-   ```
-   /2023/01/15/old-post.html /content/notes/2023-01-15-new-slug/;
-   ```
+```
+/2023/01/15/old-post.html /content/notes/2023-01-15-new-slug/;
+```
 
-2. The `nginx.conf.template` includes example patterns for common legacy URL formats.
+The `nginx.conf.template` includes example patterns for common legacy URL formats.
 
 ## Usage
 
@@ -175,54 +159,28 @@ To syndicate and receive responses from Mastodon/Bluesky:
 
 ### Makefile Commands
 
-The project includes a Makefile for streamlined deployment workflows:
-
 ```bash
 make help           # Show all available commands
-make prepare        # Apply personal .rmendes overrides to base files
-make build          # Apply overrides + build Docker image (no cache)
-make build-cached   # Apply overrides + build Docker image (with cache)
+make build          # Build Docker image (no cache)
+make build-cached   # Build Docker image (with cache)
 make deploy         # Build + deploy to Cloudron
 make update         # Deploy without rebuild (use existing image)
-make clean          # Restore base templates (undo overrides)
 make logs           # View Cloudron logs
 make shell          # SSH into Cloudron container
+make ci             # Trigger GitHub Actions build
+make ci-status      # Show recent CI workflow runs
 ```
 
-**Typical workflow:**
+### Building from Source
 
 ```bash
 # First time or after changing Dockerfile/dependencies
-make deploy
+make deploy APP=yourdomain.com
 
 # Quick update (reuse existing image)
 make update
 
-# After editing .rmendes files
-make prepare && make deploy
-
-# Prepare repo for git commit (restore templates)
-make clean
-git add . && git commit -m "Update"
-```
-
-**Override pattern:**
-
-The Makefile applies personal `.rmendes` overrides before building:
-
-| Override File | Copies To | Purpose |
-|---------------|-----------|---------|
-| `nginx.conf.rmendes` | `nginx.conf` | Custom nginx, legacy redirects |
-| `redirects.map.rmendes` | `redirects.map` | Legacy URL mappings |
-| `old-blog-redirects.map.rmendes` | `old-blog-redirects.map` | Old blog URLs |
-| `eleventy-site/_data/cv.js.rmendes` | `cv.js` | Personal CV data |
-| `indiekit.config.js.rmendes` | `indiekit.config.js` | Personal Indiekit config |
-
-All `.rmendes` files are gitignored, keeping personal data out of the public repo.
-
-**Changing target app:**
-
-```bash
+# Change target app
 make deploy APP=mysite.example.com
 ```
 
@@ -237,8 +195,6 @@ npm run serve       # Development server with watch
 ```
 
 ### Manual Cloudron Commands
-
-If you prefer not to use the Makefile:
 
 ```bash
 # Build app image
@@ -294,10 +250,9 @@ cloudron exec --app yourdomain.com
 │   ├── css/                # Compiled Tailwind CSS
 │   └── node_modules/       # Eleventy dependencies
 ├── start.sh                # Entry point
-├── nginx.conf              # Applied config (from template or override)
-├── nginx.conf.template     # Default nginx config
+├── nginx.conf              # nginx config
 ├── indiekit.config.js.template
-├── redirects.map           # Legacy URL redirects (empty or from override)
+├── redirects.map           # Legacy URL redirects
 └── old-blog-redirects.map
 
 /app/data (persistent, backed up)
@@ -320,9 +275,8 @@ cloudron exec --app yourdomain.com
 
 To display CV sections on the homepage:
 
-1. Copy `eleventy-site/_data/cv.js` to `eleventy-site/_data/cv.js.rmendes`
-2. Fill in your experience, projects, skills, education
-3. Rebuild - sections only appear when data exists
+1. Edit `eleventy-site/_data/cv.js` with your experience, projects, skills, education
+2. Rebuild — sections only appear when data exists
 
 ### Custom Theme Modifications
 
@@ -336,16 +290,27 @@ Edit files in `eleventy-site/`:
 
 This deployment includes these Indiekit plugins:
 
-- `@indiekit/preset-eleventy` - Eleventy content paths
+- `@rmdes/indiekit-preset-eleventy` - Eleventy content paths (permalink fix)
 - `@indiekit/store-file-system` - Local file storage
-- `@indiekit/syndicator-mastodon` - Mastodon syndication
-- `@indiekit/syndicator-bluesky` - Bluesky syndication
-- `@indiekit/endpoint-syndicate` - Syndication endpoint
+- `@rmdes/indiekit-syndicator-mastodon` - Mastodon syndication
+- `@rmdes/indiekit-syndicator-bluesky` - Bluesky syndication
+- `@rmdes/indiekit-endpoint-syndicate` - Syndication endpoint
 - `@indiekit/endpoint-json-feed` - JSON feed
-- `@indiekit/endpoint-webmention-io` - Webmention.io integration
+- `@rmdes/indiekit-endpoint-webmention-io` - Webmention.io integration
 - `@rmdes/indiekit-endpoint-github` - GitHub activity
 - `@rmdes/indiekit-endpoint-funkwhale` - Funkwhale integration
+- `@rmdes/indiekit-endpoint-lastfm` - Last.fm scrobbles
 - `@rmdes/indiekit-endpoint-youtube` - YouTube integration
+- `@rmdes/indiekit-endpoint-rss` - RSS feed reader
+- `@rmdes/indiekit-endpoint-microsub` - Microsub social reader
+- `@rmdes/indiekit-endpoint-blogroll` - Blog aggregator
+- `@rmdes/indiekit-endpoint-podroll` - Podcast aggregator
+- `@rmdes/indiekit-endpoint-webmention-sender` - Webmention sender
+- `@rmdes/indiekit-syndicator-indienews` - IndieNews syndication
+- `@rmdes/indiekit-syndicator-linkedin` - LinkedIn syndication
+- `@rmdes/indiekit-endpoint-linkedin` - LinkedIn OAuth
+- `@rmdes/indiekit-endpoint-homepage` - Homepage customization
+- `@rmdes/indiekit-endpoint-cv` - CV/Resume sections
 
 ## Credits
 
