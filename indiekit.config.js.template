@@ -90,6 +90,7 @@ export default {
     "@rmdes/indiekit-endpoint-blogroll",
     "@rmdes/indiekit-endpoint-homepage",
     "@rmdes/indiekit-endpoint-cv",
+    "@rmdes/indiekit-endpoint-conversations",
   ],
 
   // Local file storage - persisted in /app/data/content
@@ -254,6 +255,21 @@ export default {
   // Public API at GET /cv/data.json
   "@rmdes/indiekit-endpoint-cv": {
     mountPath: "/cv",
+  },
+
+  // Conversations endpoint (optional)
+  // Unified conversation views with protocol provenance
+  // Admin UI at /conversations, JSON API at /conversations/api/post?url=...
+  // Ingests webmentions from Bridgy, classifies by source protocol
+  // Optional direct polling of Mastodon/Bluesky notifications
+  "@rmdes/indiekit-endpoint-conversations": {
+    mountPath: "/conversations",
+    directPolling: {
+      mastodon: false, // Set true to enable direct Mastodon API polling
+      bluesky: false,  // Set true to enable direct Bluesky API polling
+    },
+    useGranary: false,
+    granaryUrl: "https://granary.io",
   },
 
 };
