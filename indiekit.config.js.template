@@ -257,9 +257,10 @@ export default {
     mountPath: "/cv",
   },
 
-  // Conversations endpoint - threaded discussion view for posts
-  // Admin UI at /conversations, public API at /conversations/api/post
-  // Ingests webmentions via /conversations/ingest
+  // Conversations - backend enrichment polling Mastodon/Bluesky notifications
+  // Admin dashboard at /conversations, JF2 API at /conversations/api/mentions
+  // Auto-detects credentials from env vars (MASTODON_ACCESS_TOKEN, BLUESKY_PASSWORD)
+  // Webhook ingest at /conversations/ingest, health check at /conversations/api/status
   "@rmdes/indiekit-endpoint-conversations": {
     mountPath: "/conversations",
   },
