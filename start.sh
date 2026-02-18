@@ -256,6 +256,7 @@ cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
 # Wrapped in a supervisor loop that restarts on crash with exponential backoff
 echo "==> Starting Eleventy watcher for auto-rebuild"
 (
+    cd /app/pkg/eleventy-site
     RESTART_COUNT=0
     BACKOFF=5
     MAX_BACKOFF=300
