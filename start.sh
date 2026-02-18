@@ -256,6 +256,7 @@ cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
 # Wrapped in a supervisor loop that restarts on crash with exponential backoff
 echo "==> Starting Eleventy watcher for auto-rebuild"
 (
+    set +e  # Disable errexit so the retry loop survives crashes
     cd /app/pkg/eleventy-site
     RESTART_COUNT=0
     BACKOFF=5
@@ -286,7 +287,9 @@ echo "==> Starting Eleventy watcher for auto-rebuild"
             fi
         fi
 
-        gosu cloudron:cloudron ./node_modules/.bin/eleventy --watch --incremental --output=/app/data/site
+        # Use absolute path — gosu's exec may not resolve relative paths from subshell cwd
+        gosu cloudron:cloudron /app/pkg/eleventy-site/node_modules/.bin/eleventy \
+            --watch --incremental --output=/app/data/site
         EXIT_CODE=$?
         echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
     done
