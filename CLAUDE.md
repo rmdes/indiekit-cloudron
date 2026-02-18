@@ -240,7 +240,10 @@ Runtime (writable, backed up):
 ├── /app/data/
 │   ├── config/                   # indiekit.config.js, env.sh, .secret
 │   ├── content/                  # User posts (notes/, articles/, etc.)
-│   ├── site/                     # Generated static HTML
+│   ├── releases/                 # Timestamped Eleventy builds
+│   │   ├── 1708300000/           # Previous release (kept for rollback)
+│   │   └── 1708400000/           # Current release
+│   ├── site -> releases/1708400000  # SYMLINK to current release (atomic swap)
 │   ├── cache/                    # Eleventy cache
 │   ├── images/                   # User-uploaded images
 │   └── uploads/                  # Media uploads
@@ -248,9 +251,28 @@ Runtime (writable, backed up):
 
 ### Process Architecture
 
-1. **nginx (port 3000)** - Entry point, serves static files, proxies to Indiekit
-2. **Eleventy (watcher)** - Rebuilds site when content changes
+1. **nginx (port 3000)** - Entry point, serves static files from `/app/data/site` (symlink), proxies to Indiekit
+2. **Eleventy (watcher)** - Rebuilds site incrementally when content changes
 3. **Indiekit (port 8080)** - Handles Micropub, authentication, admin UI
+4. **Syndication poller** - Background process polling `/syndicate` every 2 minutes
+5. **Webmention sender** - Background process polling `/webmention-sender` every 5 minutes
+
+### Zero-Downtime Build Architecture
+
+On container restart, old site continues serving while a new release builds:
+
+```
+nginx starts → root=/app/data/site → symlink to LAST release → old site serves immediately
+Indiekit starts → ready on :8080
+Eleventy full build → writes to /app/data/releases/NEW/
+Build completes → atomic symlink swap (mv -T) → nginx -s reload
+Watcher starts with --watch --incremental
+Cleanup old releases (keep 2 for rollback)
+```
+
+**Visitors experience:** Old content during build (~9 min), then seamlessly new content. Zero 404s.
+
+**Rollback:** `ln -sfn /app/data/releases/OLD_TIMESTAMP /app/data/site && nginx -s reload`
 
 ## Security Hardening
 
@@ -442,19 +464,31 @@ module.exports = {
 };
 ```
 
-### 10. Clear Stale Site Files Before Build
+### 10. Atomic Release Swap for Zero-Downtime Builds
 
-The start.sh must clear `/app/data/site` before building to prevent Eleventy from re-processing old generated files:
+The start.sh builds to a timestamped release directory, then atomically swaps the symlink. Old site serves throughout the build — no 404s during restart.
 
 ```bash
-# In start.sh - clear before build
-echo "==> Clearing stale site files"
-rm -rf /app/data/site/*
+# Build to new release directory (old site still serving)
+RELEASE_TS=$(date +%s)
+NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
+mkdir -p "${NEW_RELEASE}"
+gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}"
 
-echo "==> Building Eleventy site"
-cd /app/pkg/eleventy-site
-./node_modules/.bin/eleventy --output=/app/data/site
+# Atomic swap: create temp symlink, rename over current (rename(2) is atomic)
+ln -s "${NEW_RELEASE}" /app/data/site_tmp
+mv -T /app/data/site_tmp /app/data/site
+nginx -s reload
+
+# Cleanup: keep only 2 most recent releases for rollback
+cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
 ```
+
+**Key details:**
+- `mv -T` is an atomic `rename(2)` syscall — the symlink is never missing
+- `ln -snf` is NOT atomic (it unlinks then links, creating a gap)
+- The watcher uses `--watch --incremental` to only rebuild changed pages
+- Hooks (OG images, Pagefind, WebSub) are skipped during incremental rebuilds
 
 ### 11. Ignore Output Directory in Eleventy Config
 
@@ -615,7 +649,7 @@ When modifying this app, verify:
 | File | Check |
 |------|-------|
 | Dockerfile | Symlinks created with `ln -s`, NODE_ENV after installs |
-| start.sh | Runs from /app/pkg/eleventy-site, clears /app/data/site/*, no cp to /app/data |
+| start.sh | Runs from /app/pkg/eleventy-site, atomic release swap, no cp to /app/data |
 | package.json | Has `"type": "module"` |
 | eleventy.config.js | ESM syntax, `markdownTemplateEngine: false`, ignores `_site`, correct glob paths |
 | _data/*.js | All use `export default`, not `module.exports` |
@@ -661,7 +695,7 @@ If the fix is not clear, investigate deeper or ask the user. Destructive shortcu
 6. ❌ Using CommonJS (`module.exports`) in ESM project (`"type": "module"`)
 7. ❌ `markdownTemplateEngine: "njk"` with code samples in content
 8. ❌ Referencing `/app/code/node_modules/.bin/eleventy` for Eleventy
-9. ❌ Not clearing `/app/data/site` before Eleventy build - stale files cause errors
+9. ❌ Wiping `/app/data/site/*` before building — use atomic release swap instead (zero-downtime)
 10. ❌ Using `blog.rmendes.net` instead of `rmendes.net` - this is the production domain
 11. ❌ Disabling/removing features to work around bugs - find the root cause
 12. ❌ Editing theme files in `eleventy-site/` submodule instead of `indiekit-eleventy-theme/`
@@ -695,10 +729,33 @@ cloudron exec --app rmendes.net -- rm -rf /app/data/eleventy
 
 ### Manual Rebuild After Data Cleanup
 
-After fixing data issues, trigger a manual rebuild:
+After fixing data issues, trigger a manual rebuild using the atomic release swap:
 
 ```bash
-cloudron exec --app rmendes.net -- bash -c "rm -rf /app/data/site/* && cd /app/pkg/eleventy-site && ./node_modules/.bin/eleventy --output=/app/data/site"
+# Build a new release and swap atomically
+cloudron exec --app rmendes.net -- bash -c '
+  RELEASE_TS=$(date +%s)
+  NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
+  mkdir -p "${NEW_RELEASE}"
+  cd /app/pkg/eleventy-site && ./node_modules/.bin/eleventy --output="${NEW_RELEASE}"
+  ln -s "${NEW_RELEASE}" /app/data/site_tmp
+  chown -h cloudron:cloudron /app/data/site_tmp
+  mv -T /app/data/site_tmp /app/data/site
+  nginx -s reload
+  echo "Swapped to release ${RELEASE_TS}"
+'
+```
+
+### Rollback to Previous Release
+
+If a new release has issues, swap back to the previous one:
+
+```bash
+# List available releases
+cloudron exec --app rmendes.net -- ls -1t /app/data/releases/
+
+# Swap to a specific release
+cloudron exec --app rmendes.net -- bash -c 'ln -sfn /app/data/releases/TIMESTAMP /app/data/site && nginx -s reload'
 ```
 
 ## Workspace Context

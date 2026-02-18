@@ -3,7 +3,7 @@
 set -eu
 
 echo "==> Ensure directories"
-mkdir -p /app/data/config /app/data/content /app/data/uploads /app/data/site /app/data/cache /app/data/images
+mkdir -p /app/data/config /app/data/content /app/data/uploads /app/data/releases /app/data/cache /app/data/images
 
 # Clean up data corruption from previous buggy deployments
 echo "==> Cleaning up any corrupted data from backups"
@@ -187,38 +187,70 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
     done
 fi
 
-# Build Eleventy site from /app/pkg/eleventy-site (where node_modules lives)
-# Symlinks in Dockerfile point content/_site/.cache to /app/data
-echo "==> Clearing stale site files (preserving pagefind for instant search)"
-# Preserve pagefind index from previous build so search works during rebuild (~9 min)
-if [ -d /app/data/site/pagefind ]; then
-    mv /app/data/site/pagefind /tmp/pagefind-preserve
+# ─── Zero-downtime Eleventy build with atomic release swap ───
+# Old site continues serving while new build runs. Swap is atomic (single syscall).
+# See PLAN-zero-downtime.md for full architecture.
+
+# Ensure /app/data/site is a symlink to a release directory
+# Migration: if /app/data/site is a real directory (pre-atomic-swap), convert it
+if [ -d /app/data/site ] && [ ! -L /app/data/site ]; then
+    echo "==> Migrating /app/data/site from directory to release symlink"
+    MIGRATION_TS=$(date +%s)
+    mv /app/data/site "/app/data/releases/${MIGRATION_TS}"
+    ln -s "/app/data/releases/${MIGRATION_TS}" /app/data/site
+    chown -h cloudron:cloudron /app/data/site
+    echo "==> Migration complete: site -> releases/${MIGRATION_TS}"
 fi
-rm -rf /app/data/site/*
-if [ -d /tmp/pagefind-preserve ]; then
-    mv /tmp/pagefind-preserve /app/data/site/pagefind
-    chown -R cloudron:cloudron /app/data/site/pagefind
+
+# First-ever run: no symlink and no directory exist yet
+if [ ! -L /app/data/site ] && [ ! -d /app/data/site ]; then
+    echo "==> First run: creating placeholder release"
+    mkdir -p /app/data/releases/placeholder
+    echo '<html><head><meta http-equiv="refresh" content="5"></head><body><p>Building site...</p></body></html>' > /app/data/releases/placeholder/index.html
+    chown -R cloudron:cloudron /app/data/releases/placeholder
+    ln -s /app/data/releases/placeholder /app/data/site
+    chown -h cloudron:cloudron /app/data/site
 fi
+
+# At this point /app/data/site is a symlink → previous release → nginx serves old site
+CURRENT_RELEASE=$(readlink -f /app/data/site)
+echo "==> Current release: ${CURRENT_RELEASE}"
+echo "==> Old site continues serving while new build runs"
 
 echo "==> Clearing Eleventy fetch cache (force fresh API data)"
 rm -rf /app/data/cache/eleventy-fetch-*
 
-# Create temporary placeholder so health checks don't fail during build
-echo '<html><head><meta http-equiv="refresh" content="5"></head><body><p>Building site...</p></body></html>' > /app/data/site/index.html
-chown cloudron:cloudron /app/data/site/index.html
+# Build new release to a timestamped directory
+RELEASE_TS=$(date +%s)
+NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
+mkdir -p "${NEW_RELEASE}"
+chown cloudron:cloudron "${NEW_RELEASE}"
 
-echo "==> Building Eleventy site"
+echo "==> Building Eleventy site to ${NEW_RELEASE}"
 cd /app/pkg/eleventy-site
 # Increase Node.js heap size (container has 3GB, leave ~500MB for other processes)
 export NODE_OPTIONS="--max-old-space-size=2560"
-gosu cloudron:cloudron ./node_modules/.bin/eleventy --output=/app/data/site || {
-    echo "==> Eleventy build failed, creating placeholder"
-    mkdir -p /app/data/site
-    echo "<html><body><h1>Blog coming soon</h1><p>Create your first post at <a href='/admin'>/admin</a></p></body></html>" > /app/data/site/index.html
+gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" || {
+    echo "==> Eleventy build failed, creating placeholder in new release"
+    echo "<html><body><h1>Blog coming soon</h1><p>Create your first post at <a href='/admin'>/admin</a></p></body></html>" > "${NEW_RELEASE}/index.html"
 }
 
-echo "==> Setting permissions on generated site"
-chown -R cloudron:cloudron /app/data
+echo "==> Setting permissions on new release"
+chown -R cloudron:cloudron "${NEW_RELEASE}"
+
+# Atomic swap: create temp symlink, then rename over current (rename(2) is atomic)
+echo "==> Atomic swap: site -> releases/${RELEASE_TS}"
+ln -s "${NEW_RELEASE}" /app/data/site_tmp
+chown -h cloudron:cloudron /app/data/site_tmp
+mv -T /app/data/site_tmp /app/data/site
+
+# Reload nginx to resolve the new symlink target
+nginx -s reload
+echo "==> nginx reloaded, new release is live"
+
+# Cleanup: keep only 2 most recent releases for rollback capability
+echo "==> Cleaning up old releases (keeping 2)"
+cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
 
 # Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
 # Wrapped in a supervisor loop that restarts on crash with exponential backoff
@@ -253,7 +285,7 @@ echo "==> Starting Eleventy watcher for auto-rebuild"
             fi
         fi
 
-        gosu cloudron:cloudron ./node_modules/.bin/eleventy --watch --output=/app/data/site
+        gosu cloudron:cloudron ./node_modules/.bin/eleventy --watch --incremental --output=/app/data/site
         EXIT_CODE=$?
         echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
     done
