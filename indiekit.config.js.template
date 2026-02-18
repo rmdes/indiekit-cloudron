@@ -257,19 +257,11 @@ export default {
     mountPath: "/cv",
   },
 
-  // Conversations endpoint (optional)
-  // Unified conversation views with protocol provenance
-  // Admin UI at /conversations, JSON API at /conversations/api/post?url=...
-  // Ingests webmentions from Bridgy, classifies by source protocol
-  // Optional direct polling of Mastodon/Bluesky notifications
+  // Conversations endpoint - threaded discussion view for posts
+  // Admin UI at /conversations, public API at /conversations/api/post
+  // Ingests webmentions via /conversations/ingest
   "@rmdes/indiekit-endpoint-conversations": {
     mountPath: "/conversations",
-    directPolling: {
-      mastodon: false, // Set true to enable direct Mastodon API polling
-      bluesky: false,  // Set true to enable direct Bluesky API polling
-    },
-    useGranary: false,
-    granaryUrl: "https://granary.io",
   },
 
 };
