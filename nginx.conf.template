@@ -408,15 +408,18 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
+            add_header 'Access-Control-Allow-Origin' '*' always;
         }
 
         # Well-known endpoints (webfinger, IndieAuth, etc.) - proxy to Indiekit
+        # CORS needed for browser-based AP clients querying WebFinger
         location /.well-known/ {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
+            add_header 'Access-Control-Allow-Origin' '*' always;
         }
 
         # Indiekit static assets
@@ -481,12 +484,27 @@ http {
 
         # ActivityPub federation endpoint — proxy to Indiekit
         # Handles: actor, inbox, outbox, followers, following, admin UI
+        # CORS headers allow browser-based AP clients (browser.pub, etc.)
         location /activitypub {
+            # CORS preflight
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Accept, Content-Type, Authorization, Signature, Digest, Date' always;
+                add_header 'Access-Control-Max-Age' 86400;
+                return 204;
+            }
+
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
+
+            # CORS response headers
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Accept, Content-Type, Authorization, Signature, Digest, Date' always;
         }
 
         # Default: serve Eleventy static site
