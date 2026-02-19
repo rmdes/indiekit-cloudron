@@ -91,6 +91,8 @@ export default {
     "@rmdes/indiekit-endpoint-homepage",
     "@rmdes/indiekit-endpoint-cv",
     "@rmdes/indiekit-endpoint-conversations",
+    // ActivityPub federation
+    "@rmdes/indiekit-endpoint-activitypub",
   ],
 
   // Local file storage - persisted in /app/data/content
@@ -265,4 +267,20 @@ export default {
     mountPath: "/conversations",
   },
 
+  // ActivityPub federation — makes the site a full AP actor
+  // Admin UI at /activitypub, federation at /activitypub/inbox, /activitypub/outbox, etc.
+  // Set AP_ACTOR_HANDLE, AP_ACTOR_NAME, AP_ACTOR_SUMMARY, AP_ACTOR_ICON env vars
+  "@rmdes/indiekit-endpoint-activitypub": {
+    mountPath: "/activitypub",
+    actor: {
+      handle: process.env.AP_ACTOR_HANDLE || "me",
+      name: process.env.AP_ACTOR_NAME || "",
+      summary: process.env.AP_ACTOR_SUMMARY || "",
+      icon: process.env.AP_ACTOR_ICON || "",
+    },
+    checked: true,
+    alsoKnownAs: process.env.AP_ALSO_KNOWN_AS || "",
+    activityRetentionDays: 90,
+    storeRawActivities: false,
+  },
 };

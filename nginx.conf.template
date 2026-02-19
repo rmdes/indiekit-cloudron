@@ -34,6 +34,13 @@ http {
         ""      $host;
     }
 
+    # ActivityPub content negotiation — detect AP clients by Accept header
+    map $http_accept $is_activitypub {
+        default 0;
+        "~*application/activity\+json" 1;
+        "~*application/ld\+json" 1;
+    }
+
     # Legacy URL redirects (optional - populated via redirects.map.rmendes)
     map $uri $redirect_uri {
         default "";
@@ -463,8 +470,23 @@ http {
 
         # =================================================================
 
+        # ActivityPub federation endpoint — proxy to Indiekit
+        # Handles: actor, inbox, outbox, followers, following, admin UI
+        location /activitypub {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
         # Default: serve Eleventy static site
+        # ActivityPub clients (Mastodon, etc.) get proxied to Indiekit for
+        # actor document at / and AS2 representations of individual posts
         location / {
+            if ($is_activitypub) {
+                proxy_pass http://127.0.0.1:8080;
+            }
             try_files $uri $uri/ $uri.html =404;
         }
 
