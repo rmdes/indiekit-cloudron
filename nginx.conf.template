@@ -401,6 +401,15 @@ http {
         #     alias /app/data/site/.well-known/keybase.txt;
         # }
 
+        # NodeInfo endpoint (used by Fedify for federation discovery)
+        location /nodeinfo/ {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
         # Well-known endpoints (webfinger, IndieAuth, etc.) - proxy to Indiekit
         location /.well-known/ {
             proxy_pass http://127.0.0.1:8080;
