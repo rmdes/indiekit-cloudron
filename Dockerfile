@@ -66,7 +66,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-cv@1.0.13 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.37 \
         @rmdes/indiekit-endpoint-files@1.0.0 \
-        @rmdes/indiekit-endpoint-conversations@2.1.0 \
+        @rmdes/indiekit-endpoint-conversations@2.1.1 \
         @rmdes/indiekit-endpoint-activitypub@1.0.4
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
