@@ -202,8 +202,8 @@ cloudron build
 # Build with no cache (REQUIRED after Dockerfile or dependency changes)
 cloudron build --no-cache
 
-# Deploy to Cloudron
-cloudron update --app rmendes.net
+# Deploy to Cloudron (ALWAYS use --no-backup to skip slow backup step)
+cloudron update --app rmendes.net --no-backup
 
 # View logs
 cloudron logs -f --app rmendes.net
@@ -683,7 +683,7 @@ If the fix is not clear, investigate deeper or ask the user. Destructive shortcu
 5. **Wait** for user to confirm publish is done
 6. Update Dockerfile in `indiekit-cloudron/` if version changed
 7. Update config files if needed (both `.template` AND `.rmendes`)
-8. `cloudron build --no-cache && cloudron update --app rmendes.net`
+8. `cloudron build --no-cache && cloudron update --app rmendes.net --no-backup`
 
 ## Anti-Patterns (NEVER DO)
 
