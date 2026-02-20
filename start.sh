@@ -187,113 +187,7 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
     done
 fi
 
-# ─── Zero-downtime Eleventy build with atomic release swap ───
-# Old site continues serving while new build runs. Swap is atomic (single syscall).
-# See PLAN-zero-downtime.md for full architecture.
-
-# Ensure /app/data/site is a symlink to a release directory
-# Migration: if /app/data/site is a real directory (pre-atomic-swap), convert it
-if [ -d /app/data/site ] && [ ! -L /app/data/site ]; then
-    echo "==> Migrating /app/data/site from directory to release symlink"
-    MIGRATION_TS=$(date +%s)
-    mv /app/data/site "/app/data/releases/${MIGRATION_TS}"
-    ln -s "/app/data/releases/${MIGRATION_TS}" /app/data/site
-    chown -h cloudron:cloudron /app/data/site
-    echo "==> Migration complete: site -> releases/${MIGRATION_TS}"
-fi
-
-# First-ever run: no symlink and no directory exist yet
-if [ ! -L /app/data/site ] && [ ! -d /app/data/site ]; then
-    echo "==> First run: creating placeholder release"
-    mkdir -p /app/data/releases/placeholder
-    echo '<html><head><meta http-equiv="refresh" content="5"></head><body><p>Building site...</p></body></html>' > /app/data/releases/placeholder/index.html
-    chown -R cloudron:cloudron /app/data/releases/placeholder
-    ln -s /app/data/releases/placeholder /app/data/site
-    chown -h cloudron:cloudron /app/data/site
-fi
-
-# At this point /app/data/site is a symlink → previous release → nginx serves old site
-CURRENT_RELEASE=$(readlink -f /app/data/site)
-echo "==> Current release: ${CURRENT_RELEASE}"
-echo "==> Old site continues serving while new build runs"
-
-echo "==> Clearing Eleventy fetch cache (force fresh API data)"
-rm -rf /app/data/cache/eleventy-fetch-*
-
-# Build new release to a timestamped directory
-RELEASE_TS=$(date +%s)
-NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
-mkdir -p "${NEW_RELEASE}"
-chown cloudron:cloudron "${NEW_RELEASE}"
-
-echo "==> Building Eleventy site to ${NEW_RELEASE}"
-cd /app/pkg/eleventy-site
-# Increase Node.js heap size (container has 3GB, leave ~500MB for other processes)
-export NODE_OPTIONS="--max-old-space-size=2560"
-gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" || {
-    echo "==> Eleventy build failed, creating placeholder in new release"
-    echo "<html><body><h1>Blog coming soon</h1><p>Create your first post at <a href='/admin'>/admin</a></p></body></html>" > "${NEW_RELEASE}/index.html"
-}
-
-echo "==> Setting permissions on new release"
-chown -R cloudron:cloudron "${NEW_RELEASE}"
-
-# Atomic swap: create temp symlink, then rename over current (rename(2) is atomic)
-echo "==> Atomic swap: site -> releases/${RELEASE_TS}"
-ln -s "${NEW_RELEASE}" /app/data/site_tmp
-chown -h cloudron:cloudron /app/data/site_tmp
-mv -T /app/data/site_tmp /app/data/site
-
-# Reload nginx to resolve the new symlink target
-nginx -s reload
-echo "==> nginx reloaded, new release is live"
-
-# Cleanup: keep only 2 most recent releases for rollback capability
-echo "==> Cleaning up old releases (keeping 2)"
-cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
-
-# Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
-# Wrapped in a supervisor loop that restarts on crash with exponential backoff
-echo "==> Starting Eleventy watcher for auto-rebuild"
-(
-    set +e  # Disable errexit so the retry loop survives crashes
-    cd /app/pkg/eleventy-site
-    RESTART_COUNT=0
-    BACKOFF=5
-    MAX_BACKOFF=300
-    LAST_START=0
-
-    while true; do
-        NOW=$(date +%s)
-
-        # Reset backoff if the watcher ran for at least 5 minutes (healthy run)
-        if [ $LAST_START -gt 0 ] && [ $((NOW - LAST_START)) -ge 300 ]; then
-            RESTART_COUNT=0
-            BACKOFF=5
-        fi
-
-        LAST_START=$NOW
-        RESTART_COUNT=$((RESTART_COUNT + 1))
-
-        if [ $RESTART_COUNT -eq 1 ]; then
-            echo "[eleventy-watcher] Starting watcher"
-        else
-            echo "[eleventy-watcher] Restarting watcher (attempt $RESTART_COUNT, backoff ${BACKOFF}s)"
-            sleep $BACKOFF
-            # Exponential backoff: 5, 10, 20, 40, 80, 160, 300 (capped)
-            BACKOFF=$((BACKOFF * 2))
-            if [ $BACKOFF -gt $MAX_BACKOFF ]; then
-                BACKOFF=$MAX_BACKOFF
-            fi
-        fi
-
-        # Use absolute path — gosu's exec may not resolve relative paths from subshell cwd
-        gosu cloudron:cloudron /app/pkg/eleventy-site/node_modules/.bin/eleventy \
-            --watch --incremental --output=/app/data/site
-        EXIT_CODE=$?
-        echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
-    done
-) &
+# ─── Start background pollers early (they only need Indiekit, not Eleventy) ───
 
 # Start syndication background process
 # Polls the syndicate endpoint every 2 minutes to process pending syndications
@@ -368,6 +262,156 @@ echo "==> Starting webmention sender background process"
         sleep 300
     done
 ) &
+
+# ─── Zero-downtime Eleventy build with atomic release swap ───
+# Old site continues serving while new build runs. Swap is atomic (single syscall).
+
+# Ensure /app/data/site is a symlink to a release directory
+# Migration: if /app/data/site is a real directory (pre-atomic-swap), convert it
+if [ -d /app/data/site ] && [ ! -L /app/data/site ]; then
+    echo "==> Migrating /app/data/site from directory to release symlink"
+    MIGRATION_TS=$(date +%s)
+    mv /app/data/site "/app/data/releases/${MIGRATION_TS}"
+    ln -s "/app/data/releases/${MIGRATION_TS}" /app/data/site
+    chown -h cloudron:cloudron /app/data/site
+    echo "==> Migration complete: site -> releases/${MIGRATION_TS}"
+fi
+
+# First-ever run: no symlink and no directory exist yet
+if [ ! -L /app/data/site ] && [ ! -d /app/data/site ]; then
+    echo "==> First run: creating placeholder release"
+    mkdir -p /app/data/releases/placeholder
+    echo '<html><head><meta http-equiv="refresh" content="5"></head><body><p>Building site...</p></body></html>' > /app/data/releases/placeholder/index.html
+    chown -R cloudron:cloudron /app/data/releases/placeholder
+    ln -s /app/data/releases/placeholder /app/data/site
+    chown -h cloudron:cloudron /app/data/site
+fi
+
+# At this point /app/data/site is a symlink → previous release → nginx serves old site
+CURRENT_RELEASE=$(readlink -f /app/data/site)
+echo "==> Current release: ${CURRENT_RELEASE}"
+echo "==> Old site continues serving while new build runs"
+
+echo "==> Clearing Eleventy fetch cache (force fresh API data)"
+rm -rf /app/data/cache/eleventy-fetch-*
+
+# Build new release to a timestamped directory
+RELEASE_TS=$(date +%s)
+NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
+mkdir -p "${NEW_RELEASE}"
+chown cloudron:cloudron "${NEW_RELEASE}"
+
+echo "==> Building Eleventy site to ${NEW_RELEASE}"
+cd /app/pkg/eleventy-site
+# Node.js heap: container has 3GB, Indiekit uses ~400MB, OG subprocess uses 768MB peak
+# Keep Eleventy at 1536MB to avoid OOM kills during concurrent processing
+export NODE_OPTIONS="--max-old-space-size=1536"
+INITIAL_BUILD_OK=false
+gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
+    echo "==> Eleventy build failed, creating placeholder in new release"
+    echo "<html><body><h1>Blog coming soon</h1><p>Create your first post at <a href='/admin'>/admin</a></p></body></html>" > "${NEW_RELEASE}/index.html"
+}
+
+echo "==> Setting permissions on new release"
+chown -R cloudron:cloudron "${NEW_RELEASE}"
+
+# Run pagefind on initial build output (only if build succeeded)
+if [ "$INITIAL_BUILD_OK" = true ]; then
+    echo "==> Running pagefind indexing on ${NEW_RELEASE}"
+    cd /app/pkg/eleventy-site
+    gosu cloudron:cloudron ./node_modules/.bin/pagefind --site "${NEW_RELEASE}" --output-subdir pagefind --glob "**/*.html" || {
+        echo "==> [pagefind] Indexing failed, search will be unavailable"
+    }
+fi
+
+# Atomic swap: create temp symlink, then rename over current (rename(2) is atomic)
+echo "==> Atomic swap: site -> releases/${RELEASE_TS}"
+ln -s "${NEW_RELEASE}" /app/data/site_tmp
+chown -h cloudron:cloudron /app/data/site_tmp
+mv -T /app/data/site_tmp /app/data/site
+
+# Reload nginx to resolve the new symlink target
+nginx -s reload
+echo "==> nginx reloaded, new release is live"
+
+# Cleanup: keep only 2 most recent releases for rollback capability
+echo "==> Cleaning up old releases (keeping 2)"
+cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
+
+# Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
+# Wrapped in a supervisor loop that restarts on crash with exponential backoff
+echo "==> Starting Eleventy watcher for auto-rebuild"
+(
+    set +e  # Disable errexit so the retry loop survives crashes
+    cd /app/pkg/eleventy-site
+    RESTART_COUNT=0
+    BACKOFF=5
+    MAX_BACKOFF=300
+    LAST_START=0
+
+    while true; do
+        NOW=$(date +%s)
+
+        # Reset backoff if the watcher ran for at least 5 minutes (healthy run)
+        if [ $LAST_START -gt 0 ] && [ $((NOW - LAST_START)) -ge 300 ]; then
+            RESTART_COUNT=0
+            BACKOFF=5
+        fi
+
+        LAST_START=$NOW
+        RESTART_COUNT=$((RESTART_COUNT + 1))
+
+        if [ $RESTART_COUNT -eq 1 ]; then
+            echo "[eleventy-watcher] Starting watcher"
+        else
+            echo "[eleventy-watcher] Restarting watcher (attempt $RESTART_COUNT, backoff ${BACKOFF}s)"
+            sleep $BACKOFF
+            # Exponential backoff: 5, 10, 20, 40, 80, 160, 300 (capped)
+            BACKOFF=$((BACKOFF * 2))
+            if [ $BACKOFF -gt $MAX_BACKOFF ]; then
+                BACKOFF=$MAX_BACKOFF
+            fi
+        fi
+
+        # Use absolute path — gosu's exec may not resolve relative paths from subshell cwd
+        gosu cloudron:cloudron /app/pkg/eleventy-site/node_modules/.bin/eleventy \
+            --watch --incremental --output=/app/data/site
+        EXIT_CODE=$?
+        echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
+    done
+) &
+
+# Pagefind insurance: if initial build was OOM-killed, pagefind didn't run.
+# Wait for the watcher's first full build to complete, then run pagefind.
+if [ "$INITIAL_BUILD_OK" = false ]; then
+    echo "==> Starting pagefind recovery (initial build failed)"
+    (
+        set +e
+        # Wait for watcher to produce enough HTML files (indicating a full build)
+        # The watcher writes to /app/data/site which is the current release dir
+        echo "[pagefind-recovery] Waiting for watcher's first build to complete..."
+        for i in $(seq 1 120); do
+            sleep 5
+            # Check if the watcher has produced content (more than just index.html)
+            FILE_COUNT=$(find /app/data/site -name "*.html" 2>/dev/null | head -100 | wc -l)
+            if [ "$FILE_COUNT" -ge 50 ]; then
+                echo "[pagefind-recovery] Detected $FILE_COUNT HTML files, waiting 30s for build to finish..."
+                sleep 30
+                echo "[pagefind-recovery] Running pagefind indexing on /app/data/site"
+                cd /app/pkg/eleventy-site
+                gosu cloudron:cloudron ./node_modules/.bin/pagefind --site /app/data/site --output-subdir pagefind --glob "**/*.html" && {
+                    echo "[pagefind-recovery] Indexing complete"
+                } || {
+                    echo "[pagefind-recovery] Indexing failed"
+                }
+                break
+            fi
+        done
+        if [ "$FILE_COUNT" -lt 50 ]; then
+            echo "[pagefind-recovery] Timeout: watcher didn't produce enough files after 10 minutes"
+        fi
+    ) &
+fi
 
 # Wait for Indiekit process (keeps container running)
 echo "==> All services started, waiting for Indiekit..."
