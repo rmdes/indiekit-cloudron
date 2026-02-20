@@ -283,5 +283,7 @@ export default {
     activityRetentionDays: 90,
     storeRawActivities: false,
     redisUrl: process.env.CLOUDRON_REDIS_URL || "",
+    parallelWorkers: 5,
+    actorType: process.env.AP_ACTOR_TYPE || "Person",
   },
 };
