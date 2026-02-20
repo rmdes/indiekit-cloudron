@@ -124,6 +124,15 @@ export const routes = (Indiekit) => {
     }
   }
 
+  // Content negotiation routes — serves ActivityPub JSON-LD for post URLs
+  // and handles NodeInfo data at /nodeinfo/2.1. Mounted at root before auth
+  // so unauthenticated AP clients can fetch post representations.
+  for (const endpoint of endpoints) {
+    if (endpoint.contentNegotiationRoutes) {
+      router.use("/", endpoint.contentNegotiationRoutes);
+    }
+  }
+
   // Authenticate subsequent requests
   router.use(indieauth.authenticate());
 
