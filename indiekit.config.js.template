@@ -282,5 +282,6 @@ export default {
     alsoKnownAs: process.env.AP_ALSO_KNOWN_AS || "",
     activityRetentionDays: 90,
     storeRawActivities: false,
+    redisUrl: process.env.CLOUDRON_REDIS_URL || "",
   },
 };
