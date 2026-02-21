@@ -306,18 +306,20 @@ The Content-Security-Policy header MUST allow `https://cdn.jsdelivr.net` in `scr
 **Current CSP:**
 ```
 default-src 'self';
-script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
-style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
+style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
 img-src 'self' data: https:;
 media-src 'self' https:;
-font-src 'self';
-frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;
-connect-src 'self';
+font-src 'self' https://fonts.gstatic.com;
+frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com https://embed.acast.com https://player.vimeo.com https://w.soundcloud.com;
+connect-src 'self' https: https://cdn.jsdelivr.net;
 base-uri 'self';
 form-action 'self'
 ```
 
-**Lesson learned:** The initial CSP (Feb 2026) omitted `cdn.jsdelivr.net`, which blocked Alpine.js from loading. Without Alpine.js, the FAB (Floating Action Button) didn't initialize, making it appear that login detection was broken. The auth check (`admin.js`) worked fine — it dispatched the `indiekit:auth` event — but Alpine.js wasn't loaded to listen for it.
+**Lesson learned (Alpine.js):** The initial CSP (Feb 2026) omitted `cdn.jsdelivr.net`, which blocked Alpine.js from loading. Without Alpine.js, the FAB (Floating Action Button) didn't initialize, making it appear that login detection was broken. The auth check (`admin.js`) worked fine — it dispatched the `indiekit:auth` event — but Alpine.js wasn't loaded to listen for it.
+
+**Lesson learned (connect-src):** The service worker uses `fetch()` to cache external avatars (from Mastodon instances like `assets.chaos.social`, `files.mastodon.social`, etc.). This is governed by `connect-src`, not `img-src`. Without `https:` in `connect-src`, avatars fail on first load but appear after hard refresh (which bypasses the service worker).
 
 **When adding new CDN dependencies to the theme:** Update the CSP in BOTH `nginx.conf.template` AND `nginx.conf.rmendes`, and remember to run `make prepare` before building.
 
