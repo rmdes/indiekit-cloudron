@@ -303,43 +303,42 @@ chown cloudron:cloudron "${NEW_RELEASE}"
 
 echo "==> Building Eleventy site to ${NEW_RELEASE}"
 cd /app/pkg/eleventy-site
-# Node.js heap: container has 3GB, Indiekit uses ~400MB, OG subprocess uses 768MB peak
-# Keep Eleventy at 1536MB to avoid OOM kills during concurrent processing
-export NODE_OPTIONS="--max-old-space-size=1536"
+# Node.js heap: container has 3GB, Indiekit uses ~400MB at rest
+# Eleventy needs headroom for OG images, image transforms, and pagefind (all in-process)
+export NODE_OPTIONS="--max-old-space-size=2048"
 INITIAL_BUILD_OK=false
+# Pagefind runs inside Eleventy's eleventy.after hook (non-incremental builds only)
 gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
-    echo "==> Eleventy build failed, creating placeholder in new release"
-    echo "<html><body><h1>Blog coming soon</h1><p>Create your first post at <a href='/admin'>/admin</a></p></body></html>" > "${NEW_RELEASE}/index.html"
+    echo "==> Eleventy build failed (likely OOM-killed)"
 }
 
-echo "==> Setting permissions on new release"
-chown -R cloudron:cloudron "${NEW_RELEASE}"
-
-# Run pagefind on initial build output (only if build succeeded)
+# Only swap if build succeeded — keep serving the old release on failure
 if [ "$INITIAL_BUILD_OK" = true ]; then
-    echo "==> Running pagefind indexing on ${NEW_RELEASE}"
-    cd /app/pkg/eleventy-site
-    gosu cloudron:cloudron ./node_modules/.bin/pagefind --site "${NEW_RELEASE}" --output-subdir pagefind --glob "**/*.html" || {
-        echo "==> [pagefind] Indexing failed, search will be unavailable"
-    }
+    echo "==> Setting permissions on new release"
+    chown -R cloudron:cloudron "${NEW_RELEASE}"
+
+    # Atomic swap: create temp symlink, then rename over current (rename(2) is atomic)
+    echo "==> Atomic swap: site -> releases/${RELEASE_TS}"
+    ln -s "${NEW_RELEASE}" /app/data/site_tmp
+    chown -h cloudron:cloudron /app/data/site_tmp
+    mv -T /app/data/site_tmp /app/data/site
+
+    # Reload nginx to resolve the new symlink target
+    nginx -s reload
+    echo "==> nginx reloaded, new release is live"
+
+    # Cleanup: keep only 2 most recent releases for rollback capability
+    echo "==> Cleaning up old releases (keeping 2)"
+    cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
+else
+    echo "==> Build failed, keeping previous release: ${CURRENT_RELEASE}"
+    # Clean up the failed release directory
+    rm -rf "${NEW_RELEASE}"
 fi
-
-# Atomic swap: create temp symlink, then rename over current (rename(2) is atomic)
-echo "==> Atomic swap: site -> releases/${RELEASE_TS}"
-ln -s "${NEW_RELEASE}" /app/data/site_tmp
-chown -h cloudron:cloudron /app/data/site_tmp
-mv -T /app/data/site_tmp /app/data/site
-
-# Reload nginx to resolve the new symlink target
-nginx -s reload
-echo "==> nginx reloaded, new release is live"
-
-# Cleanup: keep only 2 most recent releases for rollback capability
-echo "==> Cleaning up old releases (keeping 2)"
-cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
 
 # Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
 # Wrapped in a supervisor loop that restarts on crash with exponential backoff
+# The watcher writes to /app/data/site (current release via symlink)
 echo "==> Starting Eleventy watcher for auto-rebuild"
 (
     set +e  # Disable errexit so the retry loop survives crashes
@@ -380,38 +379,6 @@ echo "==> Starting Eleventy watcher for auto-rebuild"
         echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
     done
 ) &
-
-# Pagefind insurance: if initial build was OOM-killed, pagefind didn't run.
-# Wait for the watcher's first full build to complete, then run pagefind.
-if [ "$INITIAL_BUILD_OK" = false ]; then
-    echo "==> Starting pagefind recovery (initial build failed)"
-    (
-        set +e
-        # Wait for watcher to produce enough HTML files (indicating a full build)
-        # The watcher writes to /app/data/site which is the current release dir
-        echo "[pagefind-recovery] Waiting for watcher's first build to complete..."
-        for i in $(seq 1 120); do
-            sleep 5
-            # Check if the watcher has produced content (more than just index.html)
-            FILE_COUNT=$(find /app/data/site -name "*.html" 2>/dev/null | head -100 | wc -l)
-            if [ "$FILE_COUNT" -ge 50 ]; then
-                echo "[pagefind-recovery] Detected $FILE_COUNT HTML files, waiting 30s for build to finish..."
-                sleep 30
-                echo "[pagefind-recovery] Running pagefind indexing on /app/data/site"
-                cd /app/pkg/eleventy-site
-                gosu cloudron:cloudron ./node_modules/.bin/pagefind --site /app/data/site --output-subdir pagefind --glob "**/*.html" && {
-                    echo "[pagefind-recovery] Indexing complete"
-                } || {
-                    echo "[pagefind-recovery] Indexing failed"
-                }
-                break
-            fi
-        done
-        if [ "$FILE_COUNT" -lt 50 ]; then
-            echo "[pagefind-recovery] Timeout: watcher didn't produce enough files after 10 minutes"
-        fi
-    ) &
-fi
 
 # Wait for Indiekit process (keeps container running)
 echo "==> All services started, waiting for Indiekit..."

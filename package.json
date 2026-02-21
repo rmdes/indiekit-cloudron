@@ -8,6 +8,6 @@
     "@indiekit/endpoint-micropub": "npm:@rmdes/indiekit-endpoint-micropub@^1.0.0-beta.26",
     "@indiekit/endpoint-syndicate": "npm:@rmdes/indiekit-endpoint-syndicate@^1.0.0-beta.32",
     "@indiekit/endpoint-files": "npm:@rmdes/indiekit-endpoint-files@^1.0.0",
-    "@indiekit/frontend": "npm:@rmdes/indiekit-frontend@^1.0.0-beta.36"
+    "@indiekit/frontend": "npm:@rmdes/indiekit-frontend@^1.0.0-beta.37"
   }
 }
