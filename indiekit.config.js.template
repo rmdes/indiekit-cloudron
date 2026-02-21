@@ -91,6 +91,7 @@ export default {
     "@rmdes/indiekit-endpoint-homepage",
     "@rmdes/indiekit-endpoint-cv",
     "@rmdes/indiekit-endpoint-conversations",
+    "@rmdes/indiekit-endpoint-comments",
     // ActivityPub federation
     "@rmdes/indiekit-endpoint-activitypub",
   ],
@@ -265,6 +266,13 @@ export default {
   // Webhook ingest at /conversations/ingest, health check at /conversations/api/status
   "@rmdes/indiekit-endpoint-conversations": {
     mountPath: "/conversations",
+  },
+
+  // Comments - IndieAuth-based comment system for blog posts
+  // Admin dashboard at /comments, JF2 API at /comments/api/comments
+  // Auth flow at /comments/api/auth, submit at /comments/api/submit
+  "@rmdes/indiekit-endpoint-comments": {
+    mountPath: "/comments",
   },
 
   // ActivityPub federation — makes the site a full AP actor
