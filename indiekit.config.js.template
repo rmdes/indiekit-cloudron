@@ -293,5 +293,11 @@ export default {
     redisUrl: process.env.CLOUDRON_REDIS_URL || "",
     parallelWorkers: 5,
     actorType: process.env.AP_ACTOR_TYPE || "Person",
+    // Fedify log level — controls verbosity of federation logs in container output
+    // Uncomment ONE of the following lines (restart required to take effect):
+    logLevel: "warning",       // Production default — only warnings and errors
+    // logLevel: "info",       // Debugging — delivery attempts, HTTP signatures, queue processing
+    // logLevel: "debug",      // Full Fedify internals — very verbose
+    // logLevel: "error",      // Errors only — minimal output
   },
 };
