@@ -68,6 +68,19 @@ http {
         "~*Amazonbot"       1;
     }
 
+    # ── ActivityPub federation cache ──────────────────────────────────
+    # Absorbs "thundering herd" when a post goes viral and hundreds of
+    # Mastodon instances simultaneously fetch actor, featured, notes.
+    # Only GET/HEAD is cached; POST /inbox always reaches Node.js.
+    proxy_cache_path /run/nginx-ap-cache levels=1:2 keys_zone=activitypub:10m
+                     max_size=100m inactive=10m use_temp_path=off;
+
+    # Skip cache for AP admin pages (session-dependent HTML)
+    map $uri $ap_skip_cache {
+        default 0;
+        "~^/activitypub/admin" 1;
+    }
+
     server {
         listen 3000;
         server_name _;
@@ -414,6 +427,13 @@ http {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
             add_header 'Access-Control-Allow-Origin' '*' always;
+
+            # Cache nodeinfo (rarely changes, queried by every instance)
+            proxy_cache activitypub;
+            proxy_cache_valid 200 10m;
+            proxy_cache_key $request_uri;
+            proxy_cache_lock on;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503;
         }
 
         # Well-known endpoints (webfinger, IndieAuth, etc.) - proxy to Indiekit
@@ -425,6 +445,15 @@ http {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
             add_header 'Access-Control-Allow-Origin' '*' always;
+
+            # Cache webfinger and other discovery endpoints
+            # $request_uri includes query string (?resource=acct:...)
+            proxy_cache activitypub;
+            proxy_cache_valid 200 5m;
+            proxy_cache_valid 404 1m;
+            proxy_cache_key $request_uri;
+            proxy_cache_lock on;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503;
         }
 
         # Indiekit static assets
@@ -510,10 +539,24 @@ http {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
 
+            # Federation cache — actor profiles, featured, tags, followers
+            # POST /inbox bypasses cache (only GET/HEAD cached by default)
+            # Admin pages (/activitypub/admin/*) bypass via $ap_skip_cache
+            proxy_cache activitypub;
+            proxy_cache_valid 200 5m;
+            proxy_cache_valid 404 1m;
+            proxy_cache_key $request_uri;
+            proxy_cache_lock on;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503;
+            proxy_cache_background_update on;
+            proxy_no_cache $ap_skip_cache;
+            proxy_cache_bypass $ap_skip_cache;
+
             # CORS response headers
             add_header 'Access-Control-Allow-Origin' '*' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Accept, Content-Type, Authorization, Signature, Digest, Date' always;
+            add_header X-Cache-Status $upstream_cache_status always;
         }
 
         # Default: serve Eleventy static site
@@ -527,6 +570,17 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto https;
+
+            # Cache AP content-negotiated responses (note/article JSON-LD)
+            # Only applies when proxy_pass fires (AP requests via $is_activitypub)
+            # Non-AP requests go to try_files and never hit the proxy/cache
+            proxy_cache activitypub;
+            proxy_cache_valid 200 5m;
+            proxy_cache_valid 404 1m;
+            proxy_cache_key "$request_uri|ap";
+            proxy_cache_lock on;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503;
+            proxy_cache_background_update on;
 
             if ($is_activitypub) {
                 proxy_pass http://127.0.0.1:8080;

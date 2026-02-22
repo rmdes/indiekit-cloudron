@@ -140,7 +140,7 @@ chown -R cloudron:cloudron /app/data
 
 # Setup nginx first (needed for health checks)
 cp /app/pkg/nginx.conf /run/nginx.conf
-mkdir -p /run/nginx-client-body /run/nginx-proxy /run/nginx-fastcgi /run/nginx-uwsgi /run/nginx-scgi
+mkdir -p /run/nginx-client-body /run/nginx-proxy /run/nginx-fastcgi /run/nginx-uwsgi /run/nginx-scgi /run/nginx-ap-cache
 
 echo "==> Starting nginx on port 3000"
 nginx -c /run/nginx.conf &
