@@ -299,5 +299,9 @@ export default {
     // logLevel: "info",       // Debugging — delivery attempts, HTTP signatures, queue processing
     // logLevel: "debug",      // Full Fedify internals — very verbose
     // logLevel: "error",      // Errors only — minimal output
+    // Fedify 2.0 debug dashboard — live traces, activities, HTTP signatures, OpenTelemetry
+    // Accessible at {mountPath}/__debug__/ (set a password to protect it!)
+    // debugDashboard: true,
+    // debugPassword: process.env.AP_DEBUG_PASSWORD || "",
   },
 };
