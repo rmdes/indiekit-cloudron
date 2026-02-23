@@ -140,17 +140,19 @@ plugins: [
 
 **ALWAYS use `@rmdes/indiekit-preset-eleventy`, NEVER `@indiekit/preset-eleventy`!**
 
-The fork removes the `url` property from post frontmatter (via `delete properties.url`) to let Eleventy generate URLs from file paths. nginx rewrite rules map Indiekit's URL format to Eleventy's file-path-based format.
+The fork converts the Indiekit `url` property to an Eleventy `permalink` property in post frontmatter, ensuring Eleventy generates pages at the canonical Indiekit URLs. The Eleventy data cascade (`_data/eleventyComputed.js`) adds `permalink` for existing posts that don't have it.
 
 How it works:
 - Indiekit stores URLs as: `/likes/2026/01/30/slug`
-- Eleventy generates HTML at: `/content/likes/2026-01-30-slug/` (from file path)
-- nginx rewrites: `/likes/2026/01/30/slug` → `/content/likes/2026-01-30-slug/`
-- Result: Posts are accessible at their Indiekit URLs via nginx rewrites
+- Preset converts `url` to `permalink: /likes/2026/01/30/slug/` in frontmatter
+- Eleventy generates HTML at: `/likes/2026/01/30/slug/index.html` (from permalink)
+- nginx serves the file directly (no rewrite needed)
+- For old `/content/` URLs, nginx redirects (301) to the clean URL
+- Result: Posts are accessible at their canonical Indiekit URLs
 
-Without this preset, Eleventy would try to use Indiekit's `url` directly, conflicting with nginx rewrites and causing 404 errors.
+The preset also preserves the original Indiekit URL as `mpUrl` for Micropub edit links in the admin UI.
 
-**History:** Beta.35 (Feb 2026) removed the `permalink` property entirely. Earlier versions tried adding `permalink` to frontmatter, but this conflicted with nginx rewrites. The current approach (just delete url) is correct.
+**History:** Beta.37 (Feb 2026) changed from deleting `url` (file-path-based generation) to setting `permalink` (explicit URL control). This eliminated the URL dualism problem where `/notes/2026/02/22/slug` redirected to `/content/notes/2026-02-22-slug/` instead of serving directly.
 
 ## CRITICAL: nginx Configuration
 
@@ -175,22 +177,22 @@ location /media {
 
 ### URL Redirects for Post Types
 
-Old Indiekit URLs must redirect to Eleventy paths:
+Legacy `/content/` URLs redirect (301) to canonical Indiekit URLs:
 
 ```nginx
-# /TYPE/YYYY/MM/DD/slug -> /content/TYPE/YYYY-MM-DD-slug/
-rewrite "^/articles/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/articles/$1-$2-$3-$4/" permanent;
-rewrite "^/notes/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/notes/$1-$2-$3-$4/" permanent;
-rewrite "^/likes/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/likes/$1-$2-$3-$4/" permanent;
-rewrite "^/reposts/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/reposts/$1-$2-$3-$4/" permanent;
-rewrite "^/photos/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/photos/$1-$2-$3-$4/" permanent;
-rewrite "^/replies/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/replies/$1-$2-$3-$4/" permanent;
-rewrite "^/bookmarks/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/bookmarks/$1-$2-$3-$4/" permanent;
-rewrite "^/videos/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/videos/$1-$2-$3-$4/" permanent;
-rewrite "^/audio/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/audio/$1-$2-$3-$4/" permanent;
-rewrite "^/jams/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/jams/$1-$2-$3-$4/" permanent;
-rewrite "^/rsvps/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/rsvps/$1-$2-$3-$4/" permanent;
-rewrite "^/events/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/events/$1-$2-$3-$4/" permanent;
+# Legacy /content/TYPE/YYYY-MM-DD-slug/ → /TYPE/YYYY/MM/DD/slug/
+rewrite "^/content/articles/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/articles/$1/$2/$3/$4/" permanent;
+rewrite "^/content/notes/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/notes/$1/$2/$3/$4/" permanent;
+rewrite "^/content/likes/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/likes/$1/$2/$3/$4/" permanent;
+rewrite "^/content/reposts/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/reposts/$1/$2/$3/$4/" permanent;
+rewrite "^/content/photos/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/photos/$1/$2/$3/$4/" permanent;
+rewrite "^/content/replies/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/replies/$1/$2/$3/$4/" permanent;
+rewrite "^/content/bookmarks/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/bookmarks/$1/$2/$3/$4/" permanent;
+rewrite "^/content/videos/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/videos/$1/$2/$3/$4/" permanent;
+rewrite "^/content/audio/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/audio/$1/$2/$3/$4/" permanent;
+rewrite "^/content/jams/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/jams/$1/$2/$3/$4/" permanent;
+rewrite "^/content/rsvps/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/rsvps/$1/$2/$3/$4/" permanent;
+rewrite "^/content/events/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/events/$1/$2/$3/$4/" permanent;
 ```
 
 ## Commands

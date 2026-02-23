@@ -482,23 +482,20 @@ http {
         rewrite "^/tag/(.+)$" "/categories/$1/" permanent;
 
         # Example: Rewrite old URL format to new Eleventy content paths
-        # /articles/YYYY/MM/DD/slug -> /content/articles/YYYY-MM-DD-slug/
-        # Skip for ActivityPub clients — they need the canonical URL proxied to Indiekit
-        # so it can return the AS2 Note object for federation
-        if ($is_activitypub = 0) {
-            rewrite "^/articles/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/articles/$1-$2-$3-$4/" permanent;
-            rewrite "^/notes/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/notes/$1-$2-$3-$4/" permanent;
-            rewrite "^/bookmarks/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/bookmarks/$1-$2-$3-$4/" permanent;
-            rewrite "^/likes/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/likes/$1-$2-$3-$4/" permanent;
-            rewrite "^/reposts/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/reposts/$1-$2-$3-$4/" permanent;
-            rewrite "^/photos/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/photos/$1-$2-$3-$4/" permanent;
-            rewrite "^/replies/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/replies/$1-$2-$3-$4/" permanent;
-            rewrite "^/videos/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/videos/$1-$2-$3-$4/" permanent;
-            rewrite "^/audio/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/audio/$1-$2-$3-$4/" permanent;
-            rewrite "^/jams/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/jams/$1-$2-$3-$4/" permanent;
-            rewrite "^/rsvps/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/rsvps/$1-$2-$3-$4/" permanent;
-            rewrite "^/events/(\d{4})/(\d{2})/(\d{2})/(.+)$" "/content/events/$1-$2-$3-$4/" permanent;
-        }
+        # Legacy /content/ URLs — redirect to clean Indiekit URLs (reversed Feb 2026)
+        # Old format: /content/TYPE/YYYY-MM-DD-slug/ → New format: /TYPE/YYYY/MM/DD/slug/
+        rewrite "^/content/articles/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/articles/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/notes/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/notes/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/bookmarks/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/bookmarks/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/likes/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/likes/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/reposts/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/reposts/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/photos/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/photos/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/replies/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/replies/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/videos/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/videos/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/audio/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/audio/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/jams/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/jams/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/rsvps/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/rsvps/$1/$2/$3/$4/" permanent;
+        rewrite "^/content/events/(\d{4})-(\d{2})-(\d{2})-(.+?)/?$" "/events/$1/$2/$3/$4/" permanent;
 
         # Example: Legacy .html URLs (e.g., from micro.blog) - redirect via map
         # Matches: /YYYY/MM/DD/slug.html
