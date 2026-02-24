@@ -115,6 +115,15 @@ export ACTIVITYPUB_HANDLE=""  # Fediverse handle (e.g., "rick") — adds rel="me
 # Format: "Name|URL|icon,Name|URL|icon"
 # Example: "GitHub|https://github.com/user|github,Mastodon|https://mastodon.social/@user|mastodon"
 export SITE_SOCIAL=""
+
+# Markdown for Agents — serve clean Markdown to AI agents
+# Set to "false" to disable Markdown generation entirely
+export MARKDOWN_AGENTS_ENABLED="true"
+# Content-signal policy — controls what AI agents are allowed to do with your content
+# Values: "yes" or "no" for each signal
+export MARKDOWN_AGENTS_AI_TRAIN="yes"   # Allow AI model training
+export MARKDOWN_AGENTS_SEARCH="yes"     # Allow search indexing
+export MARKDOWN_AGENTS_AI_INPUT="yes"   # Allow agentic use (RAG, summarization)
 ENVEOF
 fi
 
@@ -126,6 +135,21 @@ if ! grep -q 'ACTIVITYPUB_HANDLE' /app/data/config/env.sh 2>/dev/null; then
     echo '' >> /app/data/config/env.sh
     echo '# ActivityPub handle for fediverse rel="me" verification in h-card' >> /app/data/config/env.sh
     echo 'export ACTIVITYPUB_HANDLE=""' >> /app/data/config/env.sh
+fi
+
+# Migrate: add MARKDOWN_AGENTS vars to env.sh if missing
+if ! grep -q 'MARKDOWN_AGENTS_ENABLED' /app/data/config/env.sh 2>/dev/null; then
+    cat >> /app/data/config/env.sh <<'MDEOF'
+
+# Markdown for Agents — serve clean Markdown to AI agents
+# Set to "false" to disable Markdown generation entirely
+export MARKDOWN_AGENTS_ENABLED="true"
+# Content-signal policy — controls what AI agents are allowed to do with your content
+# Values: "yes" or "no" for each signal
+export MARKDOWN_AGENTS_AI_TRAIN="yes"
+export MARKDOWN_AGENTS_SEARCH="yes"
+export MARKDOWN_AGENTS_AI_INPUT="yes"
+MDEOF
 fi
 
 # Bridge ActivityPub handle to Eleventy theme for rel="me" link in h-card
