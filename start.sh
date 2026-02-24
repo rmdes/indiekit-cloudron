@@ -131,8 +131,8 @@ fi
 # Bridge ActivityPub handle to Eleventy theme for rel="me" link in h-card
 # Priority: explicit ACTIVITYPUB_HANDLE > AP_ACTOR_HANDLE > extracted from indiekit config
 if [[ -z "${ACTIVITYPUB_HANDLE:-}" && -z "${AP_ACTOR_HANDLE:-}" ]]; then
-    # Extract handle from indiekit config (grep for hardcoded handle: "value" pattern)
-    AP_HANDLE_FROM_CONFIG=$(sed -n 's/.*handle:[[:space:]]*"\([^"]*\)".*/\1/p' /app/data/config/indiekit.config.js 2>/dev/null | head -1)
+    # Extract handle from the activitypub plugin section of indiekit config
+    AP_HANDLE_FROM_CONFIG=$(sed -n '/indiekit-endpoint-activitypub/,/^[[:space:]]*}/{ s/.*handle:[[:space:]]*"\([^"]*\)".*/\1/p; }' /app/data/config/indiekit.config.js 2>/dev/null | head -1)
     export ACTIVITYPUB_HANDLE="${AP_HANDLE_FROM_CONFIG}"
 else
     export ACTIVITYPUB_HANDLE="${ACTIVITYPUB_HANDLE:-${AP_ACTOR_HANDLE:-}}"
