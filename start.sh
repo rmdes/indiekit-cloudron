@@ -109,6 +109,7 @@ export BLUESKY_HANDLE=""
 export MASTODON_INSTANCE=""
 export MASTODON_USER=""
 export LINKEDIN_USERNAME=""
+export ACTIVITYPUB_HANDLE=""  # Fediverse handle (e.g., "rick") — adds rel="me" link to h-card
 
 # Or set all social links manually (overrides auto-generation from handles above)
 # Format: "Name|URL|icon,Name|URL|icon"
@@ -119,6 +120,23 @@ fi
 
 # Source user secrets
 source /app/data/config/env.sh
+
+# Migrate: add ACTIVITYPUB_HANDLE to env.sh if missing (added in v2.0.21)
+if ! grep -q 'ACTIVITYPUB_HANDLE' /app/data/config/env.sh 2>/dev/null; then
+    echo '' >> /app/data/config/env.sh
+    echo '# ActivityPub handle for fediverse rel="me" verification in h-card' >> /app/data/config/env.sh
+    echo 'export ACTIVITYPUB_HANDLE=""' >> /app/data/config/env.sh
+fi
+
+# Bridge ActivityPub handle to Eleventy theme for rel="me" link in h-card
+# Priority: explicit ACTIVITYPUB_HANDLE > AP_ACTOR_HANDLE > extracted from indiekit config
+if [[ -z "${ACTIVITYPUB_HANDLE:-}" && -z "${AP_ACTOR_HANDLE:-}" ]]; then
+    # Extract handle from indiekit config (grep for hardcoded handle: "value" pattern)
+    AP_HANDLE_FROM_CONFIG=$(sed -n 's/.*handle:[[:space:]]*"\([^"]*\)".*/\1/p' /app/data/config/indiekit.config.js 2>/dev/null | head -1)
+    export ACTIVITYPUB_HANDLE="${AP_HANDLE_FROM_CONFIG}"
+else
+    export ACTIVITYPUB_HANDLE="${ACTIVITYPUB_HANDLE:-${AP_ACTOR_HANDLE:-}}"
+fi
 
 # Indiekit core configuration
 export MONGODB_URL="${CLOUDRON_MONGODB_URL}"
