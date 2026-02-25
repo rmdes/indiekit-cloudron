@@ -49,6 +49,10 @@ export default {
   publication: {
     me: process.env.SITE_URL,
     categories: process.env.SITE_CATEGORIES?.split(",") || ["blog", "notes", "links", "photos"],
+    // Optional layouts for the post editor's layout selector
+    // layouts: [
+    //   { name: "Full width", path: "layouts/fullwidth.njk" },
+    // ],
   },
 
   plugins: [
