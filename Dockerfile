@@ -57,7 +57,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-lastfm@1.0.12 \
         @rmdes/indiekit-endpoint-youtube@1.2.3 \
         @rmdes/indiekit-endpoint-rss@1.0.14 \
-        @rmdes/indiekit-endpoint-microsub@1.0.36 \
+        @rmdes/indiekit-endpoint-microsub@1.0.38 \
         @rmdes/indiekit-syndicator-indienews@1.0.1 \
         @rmdes/indiekit-endpoint-podroll@1.0.11 \
         @rmdes/indiekit-endpoint-webmention-sender@1.0.6 \

@@ -478,6 +478,13 @@ http {
             add_header Cache-Control "public, immutable";
         }
 
+        # Standalone interactive pages (personal content, persists across rebuilds)
+        location /interactive {
+            alias /app/data/interactive;
+            expires 7d;
+            add_header Cache-Control "public";
+        }
+
         # =================================================================
         # LEGACY URL REDIRECTS (Examples - customize for your old domain)
         # =================================================================
