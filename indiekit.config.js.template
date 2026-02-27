@@ -96,6 +96,8 @@ export default {
     "@rmdes/indiekit-endpoint-cv",
     "@rmdes/indiekit-endpoint-conversations",
     "@rmdes/indiekit-endpoint-comments",
+    // Read It Later — private bookmark list, save buttons on reader/frontend pages
+    "@rmdes/indiekit-endpoint-readlater",
     // ActivityPub federation
     "@rmdes/indiekit-endpoint-activitypub",
   ],
