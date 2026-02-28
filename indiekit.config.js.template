@@ -80,6 +80,8 @@ export default {
     "@rmdes/indiekit-endpoint-linkedin",
     "@rmdes/indiekit-syndicator-indienews",
     "@rmdes/indiekit-endpoint-syndicate",
+    // Enhanced share endpoint — type selection (note/bookmark) for frontend Post buttons
+    "@rmdes/indiekit-endpoint-share",
     "@indiekit/endpoint-json-feed",
     // Custom endpoints
     "@rmdes/indiekit-endpoint-github",
