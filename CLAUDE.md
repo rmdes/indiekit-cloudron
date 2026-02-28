@@ -276,6 +276,29 @@ Cleanup old releases (keep 2 for rollback)
 
 **Rollback:** `ln -sfn /app/data/releases/OLD_TIMESTAMP /app/data/site && nginx -s reload`
 
+## CRITICAL: npm Overrides for Forked Default Plugins
+
+Indiekit ships default plugins (defined in `packages/indiekit/config/defaults.js`) as dependencies of `@indiekit/indiekit`. When we fork one of these (e.g., `@indiekit/endpoint-share` → `@rmdes/indiekit-endpoint-share`), we use **npm overrides** in `package.json` to transparently swap them:
+
+```json
+{
+  "overrides": {
+    "@indiekit/endpoint-share": "npm:@rmdes/indiekit-endpoint-share@^1.0.0"
+  }
+}
+```
+
+npm installs our fork under the upstream name. When the default plugin loader does `import("@indiekit/endpoint-share")`, it gets our code.
+
+**Rules:**
+- Add the override to `package.json` — this is the ONLY mechanism needed
+- Keep the fork in the Dockerfile `npm install` list so it's available
+- Do NOT add `@rmdes/<fork>` to the config plugins array — the default already lists the `@indiekit/` name, and the override swaps it. Adding the `@rmdes/` name creates a duplicate
+- Do NOT patch `defaults.js` to remove the upstream plugin
+- Do NOT use file-level COPY patches to overwrite upstream code for this purpose
+
+**See also:** The workspace CLAUDE.md (`/home/rick/code/indiekit-dev/CLAUDE.md`) has a complete table of all overridden packages.
+
 ## Security Hardening
 
 ### Patches Applied to Upstream

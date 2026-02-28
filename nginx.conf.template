@@ -295,7 +295,12 @@ http {
             proxy_set_header X-Forwarded-Proto https;
         }
 
-        # Read It Later endpoint (private bookmark list + save API)
+        # Public Read It Later page (Eleventy static)
+        location = /readlater/ {
+            try_files /readlater/index.html =404;
+        }
+
+        # Read It Later endpoint (admin UI + public API)
         location /readlater {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
