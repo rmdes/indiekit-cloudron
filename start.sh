@@ -239,6 +239,15 @@ echo "==> Starting syndication background process"
 (
     echo "[syndication] Starting auto-syndication polling"
     while true; do
+        # Safety net: verify the site is serving before attempting syndication.
+        # During initial Eleventy build (~9 min after restart), pages don't exist yet.
+        SITE_STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${CLOUDRON_APP_ORIGIN}/" 2>/dev/null)
+        if [ "$SITE_STATUS" != "200" ]; then
+            echo "[syndication] $(date '+%Y-%m-%d %H:%M:%S') - Site not ready (HTTP $SITE_STATUS), skipping cycle"
+            sleep 120
+            continue
+        fi
+
         # Read SECRET from file (env var not available in subshell)
         SYNDICATION_SECRET=$(cat /app/data/config/.secret 2>/dev/null)
         SYNDICATION_ORIGIN="${CLOUDRON_APP_ORIGIN}"
