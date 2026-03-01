@@ -188,9 +188,11 @@ echo "==> Starting nginx on port 3000"
 nginx -c /run/nginx.conf &
 
 # Start Indiekit in background first (so API is available for Eleventy build)
+# Cap heap to 1024MB — Fedify KV now uses Redis (not in-process), so steady-state
+# memory is well under this. Prevents runaway growth from competing with Eleventy.
 echo "==> Starting Indiekit on port ${PORT}"
 cd /app/code
-gosu cloudron:cloudron node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
 
 # Wait for Indiekit to be ready (max 30 seconds)
@@ -345,7 +347,7 @@ chown cloudron:cloudron "${NEW_RELEASE}"
 
 echo "==> Building Eleventy site to ${NEW_RELEASE}"
 cd /app/pkg/eleventy-site
-# Node.js heap: container has 3GB, Indiekit uses ~400MB at rest
+# Node.js heap: container has 3GB, Indiekit capped at 1024MB above
 # Eleventy needs headroom for OG images, image transforms, and pagefind (all in-process)
 export NODE_OPTIONS="--max-old-space-size=2048"
 INITIAL_BUILD_OK=false
