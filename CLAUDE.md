@@ -354,6 +354,44 @@ The syndication and webmention background processes generate JWT tokens. The ori
 
 **Fix:** Environment variables are passed via `JWT_ORIGIN="$VAR" JWT_SECRET="$VAR" node -e "..."` and read with `process.env.JWT_ORIGIN` inside the Node.js code, eliminating shell injection risk.
 
+## Memory Tuning
+
+The Cloudron container has a 3GB cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs).
+
+### CRITICAL: Node.js Heap Caps
+
+| Process | Heap Cap | Set In | Why |
+|---------|----------|--------|-----|
+| **Indiekit** | 1024MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=1024"`) | Indiekit + AP plugin stabilize around 300-400MB; 1024MB gives generous headroom |
+| **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
+| **Eleventy watcher** | 1536MB | `start.sh` (reset before watcher loop) | Watcher stabilizes around 1.2-1.4GB with cached OG images and data |
+
+**Lesson learned (Feb/Mar 2026):** The watcher heap cap was initially set to 1024MB to save memory, but this caused repeated OOM kills because the watcher genuinely needs ~1.2-1.4GB for incremental rebuilds with cached image data. 1536MB is the minimum safe value — do NOT lower it below this.
+
+### Memory Budget
+
+```
+Indiekit:         ~400MB  (capped at 1024MB)
+Eleventy watcher: ~1200MB (capped at 1536MB)
+nginx:            ~15MB   (2 worker processes)
+Redis:            ~2MB    (Fedify KV store + plugin cache)
+Other/overhead:   ~30MB
+─────────────────────────
+Total:            ~1650MB / 3072MB limit (~1400MB free)
+```
+
+### Redis for Fedify KV Store (MANDATORY)
+
+As of AP plugin 2.2.0, the Fedify KV store and plugin cache use Redis instead of MongoDB's `ap_kv` collection. This was the primary OOM fix — the `ap_kv` collection grew unbounded (~14K entries/day) and consumed ~50MB+ in MongoDB, causing memory pressure.
+
+Redis provides native TTL support so idempotence keys and cache entries auto-expire. The Fedify KV store uses `fedify::` key prefix, the plugin cache uses `indiekit:` key prefix.
+
+**If Redis is unavailable**, the AP plugin falls back to in-memory storage, which loses state on restart and eventually causes memory growth.
+
+### nginx Worker Processes
+
+Set to `worker_processes 2` (not `auto` which spawns 10 on a 10-core machine). For a personal site, 2 workers are more than sufficient and save ~80MB vs 10 workers.
+
 ## Critical Patterns (MUST FOLLOW)
 
 ### 1. Symlinks MUST Be Created in Dockerfile
