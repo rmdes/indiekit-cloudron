@@ -384,8 +384,9 @@ fi
 # Wrapped in a supervisor loop that restarts on crash with exponential backoff
 # The watcher writes to /app/data/site (current release via symlink)
 # Lower heap for watcher — incremental rebuilds don't need the full 2048MB build budget
-export NODE_OPTIONS="--max-old-space-size=1024"
-echo "==> Starting Eleventy watcher for auto-rebuild (heap: 1024MB)"
+# but 1024MB is too tight (watcher stabilizes around 1.2-1.4GB with cached data)
+export NODE_OPTIONS="--max-old-space-size=1536"
+echo "==> Starting Eleventy watcher for auto-rebuild (heap: 1536MB)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
     cd /app/pkg/eleventy-site
