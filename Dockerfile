@@ -32,7 +32,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/preset-hugo \
         @indiekit/store-file-system \
         @rmdes/indiekit-syndicator-mastodon@1.0.8 \
-        @rmdes/indiekit-syndicator-bluesky@1.0.16 \
+        @rmdes/indiekit-syndicator-bluesky@1.0.17 \
         @rmdes/indiekit-syndicator-linkedin@1.0.2 \
         @rmdes/indiekit-endpoint-linkedin@1.0.5 \
         @rmdes/indiekit-endpoint-micropub@1.0.0-beta.29 \
