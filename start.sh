@@ -188,11 +188,11 @@ echo "==> Starting nginx on port 3000"
 nginx -c /run/nginx.conf &
 
 # Start Indiekit in background first (so API is available for Eleventy build)
-# Cap heap to 1024MB — Fedify KV now uses Redis (not in-process), so steady-state
-# memory is well under this. Prevents runaway growth from competing with Eleventy.
+# Cap heap to 768MB — Indiekit stabilizes around 400MB. Lower cap frees memory
+# for Eleventy build (2048MB) which runs concurrently. Total 2816MB < 3072MB limit.
 echo "==> Starting Indiekit on port ${PORT}"
 cd /app/code
-gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=768" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
 
 # Wait for Indiekit to be ready (max 30 seconds)
@@ -231,19 +231,14 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
     done
 fi
 
-# Verify GitHub starred API has data (sync populates MongoDB on first run)
+# Verify GitHub starred API is available (if configured)
 if [ -n "${GITHUB_TOKEN:-}" ]; then
-    echo "==> Waiting for GitHub starred data..."
-    for i in {1..60}; do
-        STAR_COUNT=$(curl -s http://127.0.0.1:8080/githubapi/api/starred/all 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('totalCount',0))" 2>/dev/null)
-        if [ "${STAR_COUNT:-0}" -gt 0 ]; then
-            echo "==> GitHub starred API ready (${STAR_COUNT} repos)"
+    for i in {1..10}; do
+        if curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/githubapi/api/starred/all 2>/dev/null | grep -q "200"; then
+            echo "==> GitHub starred API is ready"
             break
         fi
-        if [ "$i" -eq 60 ]; then
-            echo "==> GitHub starred API timeout (sync may still be running)"
-        fi
-        sleep 5
+        sleep 1
     done
 fi
 
