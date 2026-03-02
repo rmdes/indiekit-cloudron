@@ -231,6 +231,22 @@ if [ -n "${LASTFM_API_KEY:-}" ]; then
     done
 fi
 
+# Verify GitHub starred API has data (sync populates MongoDB on first run)
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    echo "==> Waiting for GitHub starred data..."
+    for i in {1..60}; do
+        STAR_COUNT=$(curl -s http://127.0.0.1:8080/githubapi/api/starred/all 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('totalCount',0))" 2>/dev/null)
+        if [ "${STAR_COUNT:-0}" -gt 0 ]; then
+            echo "==> GitHub starred API ready (${STAR_COUNT} repos)"
+            break
+        fi
+        if [ "$i" -eq 60 ]; then
+            echo "==> GitHub starred API timeout (sync may still be running)"
+        fi
+        sleep 5
+    done
+fi
+
 # ─── Start background pollers early (they only need Indiekit, not Eleventy) ───
 
 # Start syndication background process
