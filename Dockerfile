@@ -53,7 +53,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video \
         @rmdes/indiekit-post-type-page@1.0.4 \
-        @rmdes/indiekit-endpoint-github@1.2.1 \
+        @rmdes/indiekit-endpoint-github@1.2.2 \
         @rmdes/indiekit-endpoint-funkwhale@1.0.11 \
         @rmdes/indiekit-endpoint-lastfm@1.0.12 \
         @rmdes/indiekit-endpoint-youtube@1.2.3 \
