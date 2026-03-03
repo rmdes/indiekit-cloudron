@@ -367,10 +367,11 @@ chown cloudron:cloudron "${NEW_RELEASE}"
 
 echo "==> Building Eleventy site to ${NEW_RELEASE}"
 cd /app/pkg/eleventy-site
-# Node.js heap: container has 3GB cgroup limit shared with Indiekit (~500MB RSS),
-# MongoDB (~300MB), Redis, nginx. Node.js RSS ≈ heap + ~350MB overhead.
-# At 1664MB heap → ~2014MB RSS + 500 + 300 + 50 ≈ 2864MB < 3072MB limit.
-export NODE_OPTIONS="--max-old-space-size=1664"
+# Node.js heap: container has 3GB cgroup limit. MongoDB and Redis are Cloudron
+# addons running OUTSIDE this cgroup. Actual in-cgroup processes:
+#   Indiekit ~300-400MB RSS + Eleventy build + nginx ~50MB
+# At 2048MB heap → ~2400MB RSS + 400 + 50 ≈ 2850MB < 3072MB limit.
+export NODE_OPTIONS="--max-old-space-size=2048"
 INITIAL_BUILD_OK=false
 # Pagefind runs inside Eleventy's eleventy.after hook (non-incremental builds only)
 gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
