@@ -409,6 +409,9 @@ fi
 # Needs same heap as initial build for that first pass. Runs after initial build
 # completes, so never concurrent — 2048MB is safe within 3072MB cgroup.
 export NODE_OPTIONS="--max-old-space-size=2048"
+# Syndication webhook — Eleventy triggers syndication immediately after incremental builds
+export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
+export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
 echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2048MB)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
