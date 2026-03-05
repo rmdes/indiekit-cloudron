@@ -63,7 +63,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-podroll@1.0.11 \
         @rmdes/indiekit-endpoint-webmention-sender@1.0.6 \
         @rmdes/indiekit-endpoint-blogroll@1.0.23 \
-        @rmdes/indiekit-endpoint-homepage@1.0.20 \
+        @rmdes/indiekit-endpoint-homepage@1.0.21 \
         @rmdes/indiekit-endpoint-cv@1.0.24 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-files@1.0.0 \
