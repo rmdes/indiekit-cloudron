@@ -70,7 +70,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-conversations@2.1.6 \
         @rmdes/indiekit-endpoint-comments@1.0.0 \
         @rmdes/indiekit-endpoint-readlater@1.0.2 \
-        @rmdes/indiekit-endpoint-activitypub@2.7.1
+        @rmdes/indiekit-endpoint-activitypub@2.8.0
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
