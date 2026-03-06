@@ -6,8 +6,10 @@
 //   rate limiting to them punishes legitimate admin users during normal browsing,
 //   because each page view (posts, plugins, status, custom endpoints) counts
 //   against the same shared pool.
-// - Rate limiting is KEPT on session routes (brute force protection) and public/
-//   well-known endpoints (abuse protection).
+// - Split rate limiting into two tiers:
+//   - sessionLimit (50/15min): Session/auth routes — strict brute force protection
+//   - apiLimit (1000/15min): Public API + .well-known endpoints — generous for
+//     legitimate use (Interactions page fetches many API pages in sequence)
 
 import path from "node:path";
 
@@ -27,9 +29,20 @@ import * as statusController from "./controllers/status.js";
 import { IndieAuth } from "./indieauth.js";
 
 const router = express.Router();
-const limit = rateLimit({
+
+// Strict rate limiter for session/auth routes (brute force protection)
+const sessionLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 250,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+});
+
+// Generous rate limiter for public API endpoints (read-only data)
+const apiLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
@@ -93,9 +106,9 @@ export const routes = (Indiekit) => {
   router.get("/id", clientController.get);
 
   // Session (rate-limited: brute force protection)
-  router.get("/session/login", limit, sessionController.login);
-  router.post("/session/login", limit, indieauth.login());
-  router.get("/session/auth", limit, indieauth.authorize());
+  router.get("/session/login", sessionLimit, sessionController.login);
+  router.post("/session/login", sessionLimit, indieauth.login());
+  router.get("/session/auth", sessionLimit, indieauth.authorize());
   router.get("/session/logout", sessionController.logout);
 
   // Public and .well-known endpoints (rate-limited: abuse protection)
@@ -104,23 +117,23 @@ export const routes = (Indiekit) => {
     // Currently used for endpoint-image which requires configuration values
     // to be passed on to express-sharp middleware
     if (endpoint.mountPath && endpoint._routes) {
-      router.use(endpoint.mountPath, limit, endpoint._routes(Indiekit));
+      router.use(endpoint.mountPath, apiLimit, endpoint._routes(Indiekit));
     }
 
     if (endpoint.mountPath && endpoint.routesPublic) {
       // Skip rate limiting for root-mounted endpoints (mountPath "/") because
-      // router.use("/", limit, ...) matches ALL routes, applying the rate
+      // router.use("/", apiLimit, ...) matches ALL routes, applying the rate
       // limiter globally. This caused 429 errors on authenticated routes
       // (e.g. endpoint-json-feed mounts routesPublic at "/").
       if (endpoint.mountPath === "/") {
         router.use(endpoint.mountPath, endpoint.routesPublic);
       } else {
-        router.use(endpoint.mountPath, limit, endpoint.routesPublic);
+        router.use(endpoint.mountPath, apiLimit, endpoint.routesPublic);
       }
     }
 
     if (endpoint.routesWellKnown) {
-      router.use("/.well-known/", limit, endpoint.routesWellKnown);
+      router.use("/.well-known/", apiLimit, endpoint.routesWellKnown);
     }
   }
 
