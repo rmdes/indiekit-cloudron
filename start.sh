@@ -356,8 +356,12 @@ CURRENT_RELEASE=$(readlink -f /app/data/site)
 echo "==> Current release: ${CURRENT_RELEASE}"
 echo "==> Old site continues serving while new build runs"
 
-echo "==> Clearing Eleventy fetch cache (force fresh API data)"
-rm -rf /app/data/cache/eleventy-fetch-*
+# Eleventy-fetch cache is NOT wiped on deploy. Each entry has its own TTL
+# (duration: "1d" for build, "30d" for watch) and expires naturally.
+# Wiping forces ALL _data files to re-fetch from APIs simultaneously,
+# which causes OOM during the initial build (2,352 posts + fresh API data
+# exceeds the 2048MB heap within the 3072MB cgroup limit).
+# If you need to force a fresh fetch, delete specific cache files manually.
 
 # Build new release to a timestamped directory
 RELEASE_TS=$(date +%s)
