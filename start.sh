@@ -190,9 +190,11 @@ nginx -c /run/nginx.conf &
 # Start Indiekit in background first (so API is available for Eleventy build)
 # Cap heap to 768MB — Indiekit stabilizes around 400MB. Lower cap frees memory
 # for Eleventy build (2048MB) which runs concurrently. Total 2816MB < 3072MB limit.
+# --heapsnapshot-signal=SIGUSR2: send `kill -USR2 <pid>` to write a .heapsnapshot
+# file for memory leak analysis (open in Chrome DevTools → Memory → Load).
 echo "==> Starting Indiekit on port ${PORT}"
 cd /app/code
-gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=768" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=768 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
 
 # Wait for Indiekit to be ready (max 30 seconds)
@@ -412,11 +414,19 @@ fi
 # Watcher does a full build on first start, then switches to incremental mode.
 # Needs same heap as initial build for that first pass. Runs after initial build
 # completes, so never concurrent — 2048MB is safe within 3072MB cgroup.
-export NODE_OPTIONS="--max-old-space-size=2048"
+# --expose-gc allows eleventy.config.js to call global.gc() after each build,
+# forcing V8 to release freed heap pages back to the OS via madvise(MADV_DONTNEED).
+# Without this, post-build allocations stay resident because watch mode has no
+# allocation pressure to trigger GC naturally.
+# Heap reduced from 2048→1536: the GC after each build frees build-time allocations,
+# so the watcher no longer needs the full 2048 headroom. 1536 covers the initial
+# full build peak while keeping steady-state footprint lower.
+# --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
+export NODE_OPTIONS="--max-old-space-size=1536 --expose-gc --heapsnapshot-signal=SIGUSR2"
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
-echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2048MB)"
+echo "==> Starting Eleventy watcher for auto-rebuild (heap: 1536MB, expose-gc)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
     cd /app/pkg/eleventy-site
@@ -454,6 +464,29 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2048MB)"
             --watch --incremental --output=/app/data/site
         EXIT_CODE=$?
         echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
+    done
+) &
+
+# Memory monitor — logs RSS for all Node.js processes every 10 minutes.
+# Helps detect slow memory leaks over days. Output appears in `cloudron logs`.
+# To analyze: cloudron logs --app rmendes.net | grep '\[mem-monitor\]'
+(
+    MONITOR_INTERVAL=600  # 10 minutes
+    while true; do
+        sleep $MONITOR_INTERVAL
+        INDIEKIT_RSS=$(cat /proc/${INDIEKIT_PID}/status 2>/dev/null | grep ^VmRSS | awk '{print $2}')
+        INDIEKIT_SWAP=$(cat /proc/${INDIEKIT_PID}/status 2>/dev/null | grep ^VmSwap | awk '{print $2}')
+        # Find watcher PID dynamically (it may restart)
+        WATCHER_PID=$(pgrep -f "eleventy.*--watch" 2>/dev/null | head -1)
+        if [ -n "$WATCHER_PID" ]; then
+            WATCHER_RSS=$(cat /proc/${WATCHER_PID}/status 2>/dev/null | grep ^VmRSS | awk '{print $2}')
+            WATCHER_SWAP=$(cat /proc/${WATCHER_PID}/status 2>/dev/null | grep ^VmSwap | awk '{print $2}')
+        else
+            WATCHER_RSS="N/A"; WATCHER_SWAP="N/A"
+        fi
+        CGROUP_USED=$(cat /sys/fs/cgroup/memory.current 2>/dev/null)
+        CGROUP_MB=$((CGROUP_USED / 1024 / 1024))
+        echo "[mem-monitor] indiekit=${INDIEKIT_RSS}kB+${INDIEKIT_SWAP}kBswap eleventy=${WATCHER_RSS}kB+${WATCHER_SWAP}kBswap cgroup=${CGROUP_MB}MB"
     done
 ) &
 
