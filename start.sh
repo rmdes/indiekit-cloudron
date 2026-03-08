@@ -418,15 +418,14 @@ fi
 # forcing V8 to release freed heap pages back to the OS via madvise(MADV_DONTNEED).
 # Without this, post-build allocations stay resident because watch mode has no
 # allocation pressure to trigger GC naturally.
-# Heap reduced from 2048→1536: the GC after each build frees build-time allocations,
-# so the watcher no longer needs the full 2048 headroom. 1536 covers the initial
-# full build peak while keeping steady-state footprint lower.
 # --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
-export NODE_OPTIONS="--max-old-space-size=1536 --expose-gc --heapsnapshot-signal=SIGUSR2"
+# Heap stays at 2048 — the watcher's initial full build needs it. The GC call
+# in eleventy.config.js handles returning memory to the OS after the build.
+export NODE_OPTIONS="--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2"
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
-echo "==> Starting Eleventy watcher for auto-rebuild (heap: 1536MB, expose-gc)"
+echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2048MB, expose-gc)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
     cd /app/pkg/eleventy-site
