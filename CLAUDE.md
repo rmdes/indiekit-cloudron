@@ -356,62 +356,29 @@ The syndication and webmention background processes generate JWT tokens. The ori
 
 ## Memory Tuning
 
-The Cloudron container has a 3GB cgroup memory limit. MongoDB and Redis are Cloudron addons running OUTSIDE this cgroup. In-cgroup processes: Indiekit, Eleventy, nginx, and background shell jobs.
+The Cloudron container has a 3GB cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs).
 
-### Node.js Heap Caps
+### CRITICAL: Node.js Heap Caps
 
-| Process | Heap Cap | NODE_OPTIONS | Why |
-|---------|----------|-------------|-----|
-| **Indiekit** | 768MB | `--max-old-space-size=768 --heapsnapshot-signal=SIGUSR2` | 30+ plugins stabilize at 764-936MB RSS (GC sawtooth). 768MB V8 cap + ~160MB native overhead. |
-| **Eleventy initial build** | 2048MB | `--max-old-space-size=2048` | Full build of 3400+ posts. Process exits after build, freeing all memory. |
-| **Eleventy watcher** | 2048MB | `--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2` | Watcher does a full build on first start, then switches to incremental. GC call in eleventy.config.js returns freed pages to OS after each build. |
+| Process | Heap Cap | Set In | Why |
+|---------|----------|--------|-----|
+| **Indiekit** | 1024MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=1024"`) | Indiekit + AP plugin stabilize around 300-400MB; 1024MB gives generous headroom |
+| **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
+| **Eleventy watcher** | 1536MB | `start.sh` (reset before watcher loop) | Watcher stabilizes around 1.2-1.4GB with cached OG images and data |
 
-**History (Feb/Mar 2026):** Watcher heap was originally 2048, reduced to 1024 (OOM), raised to 1536 (still OOM on initial full build), settled at 2048. The `--expose-gc` + `global.gc()` mechanism (added Mar 2026) handles returning memory to the OS after the build completes, so the high cap doesn't waste physical memory long-term.
+**Lesson learned (Feb/Mar 2026):** The watcher heap cap was initially set to 1024MB to save memory, but this caused repeated OOM kills because the watcher genuinely needs ~1.2-1.4GB for incremental rebuilds with cached image data. 1536MB is the minimum safe value — do NOT lower it below this.
 
-### Post-Build Garbage Collection
-
-The Eleventy watcher runs with `--expose-gc` so that `eleventy.config.js` can call `global.gc()` in the `eleventy.after` handler. This forces V8 to run a full mark-sweep-compact cycle and return freed heap pages to the OS via `madvise(MADV_DONTNEED)`. Without this, V8 keeps ~2GB of build-time allocations resident in watch mode because there's no allocation pressure to trigger GC naturally.
-
-After GC, the watcher's heap settles at ~1153MB (the live working set for 3400+ posts + all plugin data). The RSS stabilizes at ~2093MB (heap + native memory + shared libraries). This is stable — not a leak.
-
-Logs: `cloudron logs --app rmendes.net | grep '\[gc\]'`
-
-### Memory Monitor
-
-A background process in `start.sh` logs RSS and swap for both Node.js processes every 10 minutes:
+### Memory Budget
 
 ```
-[mem-monitor] indiekit=905480kB+24316kBswap eleventy=2143332kB+212584kBswap cgroup=2985MB
-```
-
-Use this to track trends: `cloudron logs --app rmendes.net | grep '\[mem-monitor\]'`
-
-Stable behavior looks like: Eleventy RSS flat (no variance), Indiekit oscillating in a 764-936MB range (V8 GC sawtooth). Monotonic growth = leak.
-
-### Heap Snapshots (On-Demand)
-
-Both processes have `--heapsnapshot-signal=SIGUSR2`. To analyze a suspected leak:
-
-```bash
-cloudron exec --app rmendes.net -- pgrep -f "indiekit.*serve"   # Find PID
-cloudron exec --app rmendes.net -- kill -USR2 <pid>              # Trigger snapshot
-cloudron exec --app rmendes.net -- ls -la /app/code/*.heapsnapshot
-# Wait hours, take another, then compare in Chrome DevTools → Memory → Comparison
-```
-
-### Memory Budget (Measured Mar 2026, 3400+ posts, 30+ plugins)
-
-```
-Eleventy watcher: ~2093MB RSS (stable after GC, heap ~1153MB)
-Indiekit server:  ~764-936MB RSS (GC sawtooth, heap cap 768MB)
+Indiekit:         ~400MB  (capped at 1024MB)
+Eleventy watcher: ~1200MB (capped at 1536MB)
 nginx:            ~15MB   (2 worker processes)
-Shell bg jobs:    ~5MB    (syndication poller, webmention sender, mem-monitor)
+Redis:            ~2MB    (Fedify KV store + plugin cache)
+Other/overhead:   ~30MB
 ─────────────────────────
-Total:            ~2877-3049MB / 3072MB limit (93-99% used)
-Swap:             ~237MB actively swapping
+Total:            ~1650MB / 3072MB limit (~1400MB free)
 ```
-
-The container is running near capacity. This is not a leak — it's the legitimate cost of holding 3400+ posts in Eleventy's data model plus 30+ Indiekit plugins with background sync loops. If the site continues growing, consider increasing the container limit to 4GB.
 
 ### Redis for Fedify KV Store (MANDATORY)
 
