@@ -356,29 +356,88 @@ The syndication and webmention background processes generate JWT tokens. The ori
 
 ## Memory Tuning
 
-The Cloudron container has a 3GB cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs).
+The Cloudron container has a 3 GB cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs).
 
 ### CRITICAL: Node.js Heap Caps
 
 | Process | Heap Cap | Set In | Why |
 |---------|----------|--------|-----|
-| **Indiekit** | 1024MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=1024"`) | Indiekit + AP plugin stabilize around 300-400MB; 1024MB gives generous headroom |
+| **Indiekit** | 768MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=768"`) | Heap snapshot (Mar 2026) measured 137 MB actual usage; 768 MB gives 5× headroom |
 | **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
-| **Eleventy watcher** | 1536MB | `start.sh` (reset before watcher loop) | Watcher stabilizes around 1.2-1.4GB with cached OG images and data |
+| **Eleventy watcher** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | Watcher's initial full build needs 2048 MB. GC hook returns memory to OS after build. |
 
-**Lesson learned (Feb/Mar 2026):** The watcher heap cap was initially set to 1024MB to save memory, but this caused repeated OOM kills because the watcher genuinely needs ~1.2-1.4GB for incremental rebuilds with cached image data. 1536MB is the minimum safe value — do NOT lower it below this.
+### Post-Build GC
 
-### Memory Budget
+`eleventy.config.js` calls `global.gc()` in the `eleventy.after` hook (requires `--expose-gc`). This forces V8 to release freed heap pages back to the OS via `madvise(MADV_DONTNEED)`. Without it, post-build allocations stay resident because watch mode has no allocation pressure to trigger GC naturally.
 
+The GC hook also logs V8 heap space breakdown and supports `HEAP_SNAPSHOT=1` env var to write a snapshot to `/tmp` for analysis.
+
+### Heap Snapshot Analysis (Mar 2026)
+
+Heap snapshots taken with V8 HeapProfiler reveal the actual memory consumers:
+
+**Indiekit process (PID 33):** 137 MB heap, ~300 MB RSS
+- Strings: 39 MB (plugin source code, template strings)
+- Compiled code: 35 MB (30+ plugins)
+- Native buffers: 19 MB (TLS/crypto)
+- Arrays: 19 MB
+- **Verdict: healthy, no leaks**
+
+**Eleventy watcher:** 1,127 MB heap after GC, ~1,600 MB RSS
+
+| V8 Heap Space | Size | What |
+|---------------|------|------|
+| **large_object_space** | **707 MB** | Rendered HTML pages retained for incremental rebuild diffing |
+| **old_space** | **408 MB** | Collections, template data, Eleventy internal structures |
+| code_space | 8 MB | Compiled JavaScript |
+| trusted_space | 3 MB | V8 internal |
+
+**Root cause of the 707 MB large_object_space:** Eleventy's `--watch --incremental` mode retains all 3,070 rendered HTML pages in memory. Each complete HTML page (base layout + sidebar + post content + Tailwind utility classes + microformat markup) averages **228 KB**. This is not a leak — it's Eleventy's watch-mode architecture.
+
+Breakdown of retained large strings:
+- 3,070 full HTML pages (`<!DOCTYPE html>...`): **682 MB**
+- 426 collection/feed pages: 36 MB
+- 42 category JSON feeds: 8 MB
+- 37 category RSS feeds: 7 MB
+- Module source code: ~6 MB
+
+**170 MB of JSArrayBufferData** (1,579 native buffers) from `eleventy-img`'s in-memory image cache.
+
+### Memory Budget (Measured Mar 2026)
+
+| Process | Steady State | Peak (during build) | Notes |
+|---------|-------------|---------------------|-------|
+| Indiekit | ~300 MB | ~300 MB | Stable, no leaks |
+| Eleventy watcher | ~1,600 MB | ~1,900 MB | 1,127 MB heap + 470 MB native/overhead |
+| og-cli (image gen) | sleeping (4 MB) | **~2,000 MB** | Runs during builds, exits after |
+| nginx | ~15 MB | ~15 MB | 2 worker processes |
+| Redis | ~12 MB | ~12 MB | Fedify KV + plugin cache |
+
+**Peak memory occurs when og-cli runs concurrently with the watcher during builds**, briefly pushing the container to 3+ GB. After og-cli exits and GC runs, steady state is ~2,400 MB / 3,072 MB limit.
+
+### On-Demand Heap Snapshots
+
+Two mechanisms for heap analysis:
+
+1. **SIGUSR2**: Send `kill -USR2 <watcher_pid>` — V8 writes snapshot to `/tmp/` (via `--heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp`)
+2. **HEAP_SNAPSHOT=1**: Set env var before a build — the GC hook writes snapshot after build completes
+
+Analysis script: use `node` to parse the JSON snapshot file and aggregate by type/size.
+
+### Memory Monitor
+
+A background process in `start.sh` logs RSS + swap for Indiekit and Eleventy every 10 minutes:
 ```
-Indiekit:         ~400MB  (capped at 1024MB)
-Eleventy watcher: ~1200MB (capped at 1536MB)
-nginx:            ~15MB   (2 worker processes)
-Redis:            ~2MB    (Fedify KV store + plugin cache)
-Other/overhead:   ~30MB
-─────────────────────────
-Total:            ~1650MB / 3072MB limit (~1400MB free)
+[mem-monitor] indiekit=318188kB+423384kBswap eleventy=1573160kBswap cgroup=2373MB
 ```
+
+### Optimization Opportunities
+
+To reduce memory within the 3 GB limit:
+1. **Reduce per-category feeds**: Each category generates feed.json + feed.xml (~200 extra pages, ~45 MB)
+2. **Reduce per-page HTML size**: Stripping sidebar from non-content pages would save ~50 KB/page
+3. **Constrain og-cli**: The OG image generator peaks at 2 GB during builds — investigate image batching
+4. **Increase container to 4 GB**: The most pragmatic solution — steady state (2.4 GB) would have 1.6 GB headroom
 
 ### Redis for Fedify KV Store (MANDATORY)
 
