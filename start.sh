@@ -421,7 +421,7 @@ fi
 # --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
 # Heap stays at 2048 — the watcher's initial full build needs it. The GC call
 # in eleventy.config.js handles returning memory to the OS after the build.
-export NODE_OPTIONS="--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2"
+export NODE_OPTIONS="--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
