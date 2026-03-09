@@ -365,6 +365,7 @@ The Cloudron container has a 3 GB cgroup memory limit shared across all processe
 | **Indiekit** | 768MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=768"`) | Heap snapshot (Mar 2026) measured 137 MB actual usage; 768 MB gives 5× headroom |
 | **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
 | **Eleventy watcher** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | Watcher's initial full build needs 2048 MB. GC hook returns memory to OS after build. |
+| **og-cli** | 512MB | `eleventy.config.js` (`--max-old-space-size=512 --expose-gc`) | V8 heap only uses ~22 MB; cap is safety margin. WASM native memory is the real consumer (not limited by this flag). |
 
 ### Post-Build GC
 
@@ -403,17 +404,39 @@ Breakdown of retained large strings:
 
 **170 MB of JSArrayBufferData** (1,579 native buffers) from `eleventy-img`'s in-memory image cache.
 
+### OG Image Generator — Batch Spawning (Fixed Mar 2026)
+
+The OG image generator (`lib/og.js`) uses Satori (Yoga WASM) for SVG layout and Resvg (Rust WASM) for PNG rendering. These WASM modules allocate **native memory outside V8's heap**, meaning `--max-old-space-size` has no effect on them. Without mitigation, native memory grows unbounded with each image processed.
+
+**Problem:** Single-process OG generation of 2,350+ images peaked at **2,976 MB RSS** — V8 heap was only 23 MB, the rest was WASM native allocations. During watcher rebuilds (watcher already at ~1.8 GB), this exceeded the 3 GB cgroup limit and OOM-killed the process.
+
+**Solution: Batch spawning.** `eleventy.config.js` spawns `og-cli` in a loop with `batchSize=100`. Each invocation generates up to 100 images, saves the manifest, and exits with code 2 ("more remain"). The spawner catches exit code 2 and re-spawns. When og-cli exits, the OS reclaims ALL memory — both V8 heap and WASM native allocations. Exit code 0 = all done.
+
+**Measured results (Mar 2026, full regeneration during watcher rebuild):**
+```
+24 batches × 100 images + 1 final batch of 54 = 2,454 images generated
+Per-batch peak RSS: 452-469 MB (flat across all batches, no growth)
+V8 heap: 17-23 MB per batch
+Total time: ~2 minutes
+Container cgroup during generation: ~2,300 MB (watcher 1.8 GB + og-cli batch ~460 MB)
+```
+
+Additional safeguards:
+- `global.gc()` every 5 images within each batch (reclaims JS wrappers referencing WASM objects)
+- Manifest saved every 10 images (preserves progress if OOM-killed mid-batch)
+- `newManifest` seeded from existing manifest (unscanned entries survive batch writes)
+
 ### Memory Budget (Measured Mar 2026)
 
 | Process | Steady State | Peak (during build) | Notes |
 |---------|-------------|---------------------|-------|
 | Indiekit | ~300 MB | ~300 MB | Stable, no leaks |
 | Eleventy watcher | ~1,600 MB | ~1,900 MB | 1,127 MB heap + 470 MB native/overhead |
-| og-cli (image gen) | sleeping (4 MB) | **~2,000 MB** | Runs during builds, exits after |
+| og-cli (per batch) | not running | **~460 MB** | 100 images/batch, fresh process each, flat memory |
 | nginx | ~15 MB | ~15 MB | 2 worker processes |
 | Redis | ~12 MB | ~12 MB | Fedify KV + plugin cache |
 
-**Peak memory occurs when og-cli runs concurrently with the watcher during builds**, briefly pushing the container to 3+ GB. After og-cli exits and GC runs, steady state is ~2,400 MB / 3,072 MB limit.
+**Peak memory during OG generation: watcher (~1,800 MB) + og-cli batch (~460 MB) = ~2,300 MB**, well within the 3,072 MB limit. After all batches complete and GC runs, steady state is ~2,400 MB / 3,072 MB limit.
 
 ### On-Demand Heap Snapshots
 
@@ -436,8 +459,8 @@ A background process in `start.sh` logs RSS + swap for Indiekit and Eleventy eve
 To reduce memory within the 3 GB limit:
 1. **Reduce per-category feeds**: Each category generates feed.json + feed.xml (~200 extra pages, ~45 MB)
 2. **Reduce per-page HTML size**: Stripping sidebar from non-content pages would save ~50 KB/page
-3. **Constrain og-cli**: The OG image generator peaks at 2 GB during builds — investigate image batching
-4. **Increase container to 4 GB**: The most pragmatic solution — steady state (2.4 GB) would have 1.6 GB headroom
+3. ~~**Constrain og-cli**~~: **FIXED** — batch spawning (100 images/invocation) keeps peak at ~460 MB per batch
+4. **Increase container to 4 GB**: Would give more headroom — steady state (2.4 GB) would have 1.6 GB vs current 0.7 GB
 
 ### Redis for Fedify KV Store (MANDATORY)
 
