@@ -420,14 +420,14 @@ fi
 # Without this, post-build allocations stay resident because watch mode has no
 # allocation pressure to trigger GC naturally.
 # --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
-# Heap at 2304 — the watcher's initial full build OOMs at 2048 (passthrough copy +
-# template rendering peak). 2304 gives headroom while fitting 3GB cgroup:
-# watcher ~1900 + Indiekit ~600 = ~2500 < 3072.
-export NODE_OPTIONS="--max-old-space-size=2304 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
+# Heap at 2560 — watcher's initial full build peaks above 2304MB V8 heap (3,400
+# pages in memory). Needs 3.5GB+ cgroup: watcher ~2800 peak + Indiekit ~600 = ~3400.
+# Steady state after build is ~2300MB total.
+export NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
-echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2304MB, expose-gc)"
+echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
     cd /app/pkg/eleventy-site
