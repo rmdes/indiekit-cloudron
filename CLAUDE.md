@@ -175,6 +175,8 @@ location /media {
 }
 ```
 
+**CRITICAL: Do NOT include `media` in the static asset caching regex.** The caching regex (`location ~* ^/(css|js|fonts|og|pagefind|img|images|graph)/...`) MUST NOT list `media` because nginx regex locations match in order of appearance (first wins). If `media` is in the caching regex, it intercepts `/media/photos/...` requests before the `alias` block above, serving from `root /app/data/site` (404) instead of `alias /app/data/content/media/` (correct). This bug was introduced in `6905ac4` and fixed in `8d001e8` (Mar 2026).
+
 ### URL Redirects for Post Types
 
 Legacy `/content/` URLs redirect (301) to canonical Indiekit URLs:
@@ -272,7 +274,7 @@ Watcher starts with --watch --incremental
 Cleanup old releases (keep 2 for rollback)
 ```
 
-**Visitors experience:** Old content during build (~9 min), then seamlessly new content. Zero 404s.
+**Visitors experience:** Old content during build (~3 min warm, ~20 min cold), then seamlessly new content. Zero 404s.
 
 **Rollback:** `ln -sfn /app/data/releases/OLD_TIMESTAMP /app/data/site && nginx -s reload`
 
@@ -356,7 +358,7 @@ The syndication and webmention background processes generate JWT tokens. The ori
 
 ## Memory Tuning
 
-The Cloudron container has a 3 GB cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs).
+The Cloudron container has a 3.5 GB (3,584 MB) cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs).
 
 ### CRITICAL: Node.js Heap Caps
 
@@ -364,7 +366,7 @@ The Cloudron container has a 3 GB cgroup memory limit shared across all processe
 |---------|----------|--------|-----|
 | **Indiekit** | 768MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=768"`) | Heap snapshot (Mar 2026) measured 137 MB actual usage; 768 MB gives 5× headroom |
 | **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
-| **Eleventy watcher** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | Watcher's initial full build needs 2048 MB. GC hook returns memory to OS after build. |
+| **Eleventy watcher** | 2560MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | Watcher's initial full build peaks above 2304 MB V8 heap (3,400+ pages in memory). GC hook returns memory to OS after build. |
 | **og-cli** | 512MB | `eleventy.config.js` (`--max-old-space-size=512 --expose-gc`) | V8 heap only uses ~22 MB; cap is safety margin. WASM native memory is the real consumer (not limited by this flag). |
 
 ### Post-Build GC
@@ -408,7 +410,7 @@ Breakdown of retained large strings:
 
 The OG image generator (`lib/og.js`) uses Satori (Yoga WASM) for SVG layout and Resvg (Rust WASM) for PNG rendering. These WASM modules allocate **native memory outside V8's heap**, meaning `--max-old-space-size` has no effect on them. Without mitigation, native memory grows unbounded with each image processed.
 
-**Problem:** Single-process OG generation of 2,350+ images peaked at **2,976 MB RSS** — V8 heap was only 23 MB, the rest was WASM native allocations. During watcher rebuilds (watcher already at ~1.8 GB), this exceeded the 3 GB cgroup limit and OOM-killed the process.
+**Problem:** Single-process OG generation of 2,350+ images peaked at **2,976 MB RSS** — V8 heap was only 23 MB, the rest was WASM native allocations. During watcher rebuilds (watcher already at ~1.8 GB), this exceeded the cgroup limit and OOM-killed the process.
 
 **Solution: Batch spawning.** `eleventy.config.js` spawns `og-cli` in a loop with `batchSize=100`. Each invocation generates up to 100 images, saves the manifest, and exits with code 2 ("more remain"). The spawner catches exit code 2 and re-spawns. When og-cli exits, the OS reclaims ALL memory — both V8 heap and WASM native allocations. Exit code 0 = all done.
 
@@ -431,12 +433,12 @@ Additional safeguards:
 | Process | Steady State | Peak (during build) | Notes |
 |---------|-------------|---------------------|-------|
 | Indiekit | ~300 MB | ~300 MB | Stable, no leaks |
-| Eleventy watcher | ~1,600 MB | ~1,900 MB | 1,127 MB heap + 470 MB native/overhead |
+| Eleventy watcher | ~1,800 MB | ~2,800 MB | 1,140 MB heap steady state; peaks at ~2,560 MB V8 heap during initial build (3,400+ pages) |
 | og-cli (per batch) | not running | **~460 MB** | 100 images/batch, fresh process each, flat memory |
 | nginx | ~15 MB | ~15 MB | 2 worker processes |
 | Redis | ~12 MB | ~12 MB | Fedify KV + plugin cache |
 
-**Peak memory during OG generation: watcher (~1,800 MB) + og-cli batch (~460 MB) = ~2,300 MB**, well within the 3,072 MB limit. After all batches complete and GC runs, steady state is ~2,400 MB / 3,072 MB limit.
+**Peak memory during OG generation: watcher (~2,800 MB) + og-cli batch (~460 MB) = ~3,260 MB**, fitting within the 3,584 MB limit. After all batches complete and GC runs, steady state is ~2,641 MB / 3,584 MB (74% utilization).
 
 ### On-Demand Heap Snapshots
 
@@ -456,11 +458,11 @@ A background process in `start.sh` logs RSS + swap for Indiekit and Eleventy eve
 
 ### Optimization Opportunities
 
-To reduce memory within the 3 GB limit:
+Potential further reductions within the 3.5 GB limit:
 1. **Reduce per-category feeds**: Each category generates feed.json + feed.xml (~200 extra pages, ~45 MB)
 2. **Reduce per-page HTML size**: Stripping sidebar from non-content pages would save ~50 KB/page
 3. ~~**Constrain og-cli**~~: **FIXED** — batch spawning (100 images/invocation) keeps peak at ~460 MB per batch
-4. **Increase container to 4 GB**: Would give more headroom — steady state (2.4 GB) would have 1.6 GB vs current 0.7 GB
+4. ~~**Increase container to 4 GB**~~: **DONE** — container raised from 3 GB to 3.5 GB (Mar 2026). Steady state ~2,641 MB / 3,584 MB (74%)
 
 ### Redis for Fedify KV Store (MANDATORY)
 
@@ -646,6 +648,41 @@ Prevent Eleventy from processing files in the output directory (which is a symli
 eleventyConfig.ignores.add("_site");
 eleventyConfig.ignores.add("_site/**");
 ```
+
+## Eleventy Performance Optimizations (Mar 2026)
+
+The theme includes several performance optimizations that dramatically reduce incremental rebuild times:
+
+### Data File Caching (`lib/data-fetch.js`)
+
+A shared `cachedFetch` helper wraps `@11ty/eleventy-fetch` with:
+- **Watch-mode cache extension:** During `ELEVENTY_RUN_MODE !== "build"`, cache duration extends to 4 hours (vs 5-15 min default). This prevents 13 network data files from re-fetching APIs on every incremental rebuild.
+- **AbortController timeout:** 10-second hard timeout on all network requests to prevent slow APIs from hanging the build.
+
+Result: Data File phase went from 12,169ms → 28ms on incremental rebuilds (99.8% reduction).
+
+### Filter Memoization (`eleventy.config.js`)
+
+Nunjucks filters called thousands of times per build are memoized with `Map` caches cleared on `eleventy.before`:
+- `dateDisplay`, `date`, `isoDate` — date formatting
+- `hash` — MD5 file hashing for cache busting
+- `aiPosts`, `aiStats` — computed data
+
+### html-transformer Pre-Check
+
+The default `@11ty/eleventy/html-transformer` transform is overridden with a pre-check that skips the full PostHTML parse/serialize cycle (~3ms/page) for pages without `<img>` tags.
+
+### Build Time Reference
+
+| Build Type | Time | Pages | Notes |
+|------------|------|-------|-------|
+| Cold build (empty caches) | ~20 min | 3,400+ | First deploy or after wiping `.cache/`. Regenerates all 2,400+ OG images, fetches all unfurl URLs, all API data files |
+| Warm build (caches populated) | ~3 min | 3,400+ | Normal container restart. OG manifest skips existing images, unfurl/data caches hit disk |
+| Incremental rebuild (watcher) | ~25s | 1,047 written, 2,392 skipped | Triggered by content changes. Data files cached 4h in watch mode |
+
+**What makes a build "cold":** The OG manifest (`.cache/og/manifest.json`), unfurl cache (`.cache/unfurl/`), and eleventy-fetch cache (`.cache/eleventy-fetch/`) are empty. This happens on first deploy or if `/app/data/cache/` is wiped. The symlink `.cache → /app/data/cache` persists these across container restarts, so normal restarts are warm builds.
+
+**What makes a build "warm":** Caches are populated from a previous build. OG generation only processes new/changed posts (manifest-based diffing). Unfurl URLs and API data are served from disk cache. The dominant cost is template rendering + Pagefind indexing (~2-3 min).
 
 ## Eleventy Site Configuration
 
