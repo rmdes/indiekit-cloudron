@@ -378,6 +378,7 @@ cd /app/pkg/eleventy-site
 #   Indiekit ~300-400MB RSS + Eleventy build + nginx ~50MB
 # At 2048MB heap → ~2400MB RSS + 400 + 50 ≈ 2850MB < 3072MB limit.
 export NODE_OPTIONS="--max-old-space-size=2048"
+export DEBUG="Eleventy:Benchmark*"
 INITIAL_BUILD_OK=false
 # Pagefind runs inside Eleventy's eleventy.after hook (non-incremental builds only)
 gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
@@ -419,14 +420,13 @@ fi
 # Without this, post-build allocations stay resident because watch mode has no
 # allocation pressure to trigger GC naturally.
 # --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
-# Heap at 2560 — the watcher's initial full build needs >2048 due to watch-mode
-# overhead (file watchers, incremental tracking). With 4GB cgroup this is safe:
-# watcher ~2900 RSS + Indiekit ~400 = ~3300 < 4096.
-export NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
+# Heap at 2048 — memoized filters and cached data files reduced peak usage from
+# ~2500MB to ~1700MB RSS. With 3GB cgroup: watcher ~1700 + Indiekit ~600 = ~2300 < 3072.
+export NODE_OPTIONS="--max-old-space-size=2048 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
-echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
+echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2048MB, expose-gc)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
     cd /app/pkg/eleventy-site
