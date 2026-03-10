@@ -387,6 +387,17 @@ gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" &&
 
 # Only swap if build succeeded — keep serving the old release on failure
 if [ "$INITIAL_BUILD_OK" = true ]; then
+    # Sync OG images from persistent cache to new release.
+    # eleventy.before generates OG images to .cache/og/ (→ /app/data/cache/og/),
+    # but passthrough copy may miss them when --output differs from _site symlink.
+    if [ -d /app/data/cache/og ]; then
+        echo "==> Syncing OG images from cache to new release"
+        mkdir -p "${NEW_RELEASE}/og"
+        cp -f /app/data/cache/og/*.png "${NEW_RELEASE}/og/" 2>/dev/null || true
+        OG_COUNT=$(ls -1 "${NEW_RELEASE}/og/"*.png 2>/dev/null | wc -l)
+        echo "==> Synced ${OG_COUNT} OG images"
+    fi
+
     echo "==> Setting permissions on new release"
     chown -R cloudron:cloudron "${NEW_RELEASE}"
 
