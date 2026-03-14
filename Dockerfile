@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=299
+ARG CACHE_BUST=300
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -68,7 +68,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-files@1.0.0 \
         @rmdes/indiekit-endpoint-conversations@2.1.6 \
-        @rmdes/indiekit-endpoint-comments@1.0.8 \
+        @rmdes/indiekit-endpoint-comments@1.0.9 \
         @rmdes/indiekit-endpoint-readlater@1.0.5 \
         @rmdes/indiekit-endpoint-activitypub@2.10.1
 
