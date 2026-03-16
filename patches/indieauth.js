@@ -191,7 +191,7 @@ export const IndieAuth = class {
     const { devMode, me } = this;
 
     return async function (request, response, next) {
-      if (devMode) {
+      if (devMode && process.env.INDIEKIT_ALLOW_DEV_AUTH === "1") {
         request.session.access_token = process.env.NODE_ENV;
         request.session.scope = "create update delete media";
       } else if (!process.env.PASSWORD_SECRET) {
