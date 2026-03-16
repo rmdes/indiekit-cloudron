@@ -24,20 +24,20 @@ COPY package.json /app/code/
 # Note: @indiekit/endpoint-auth is overridden via package.json
 # Note: @rmdes/indiekit-preset-eleventy replaces @indiekit/preset-eleventy (permalink fix)
 # Note: @rmdes/indiekit-endpoint-micropub replaces @indiekit/endpoint-micropub (typeConfig validation fix)
-ARG INDIEKIT_VERSION=1.0.0-beta.25
+ARG INDIEKIT_VERSION=1.0.0-beta.27
 RUN chown -R cloudron:cloudron /app/code && \
     gosu cloudron:cloudron npm cache clean --force && \
     gosu cloudron:cloudron npm install --legacy-peer-deps \
         @indiekit/indiekit@${INDIEKIT_VERSION} \
         @indiekit/preset-hugo \
         @indiekit/store-file-system \
-        @rmdes/indiekit-syndicator-mastodon@1.0.8 \
-        @rmdes/indiekit-syndicator-bluesky@1.0.19 \
+        @rmdes/indiekit-syndicator-mastodon@1.0.9 \
+        @rmdes/indiekit-syndicator-bluesky@1.0.20 \
         @rmdes/indiekit-syndicator-linkedin@1.0.2 \
         @rmdes/indiekit-endpoint-linkedin@1.0.5 \
-        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.29 \
-        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.36 \
-        @rmdes/indiekit-endpoint-share@1.0.2 \
+        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.30 \
+        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.37 \
+        @rmdes/indiekit-endpoint-share@1.0.3 \
         @indiekit/endpoint-json-feed \
         @rmdes/indiekit-endpoint-webmention-io@1.0.7 \
         @indiekit/post-type-article \
@@ -66,7 +66,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-homepage@1.0.22 \
         @rmdes/indiekit-endpoint-cv@1.0.24 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
-        @rmdes/indiekit-endpoint-files@1.0.0 \
+        @rmdes/indiekit-endpoint-files@1.0.1 \
         @rmdes/indiekit-endpoint-conversations@2.3.0 \
         @rmdes/indiekit-endpoint-comments@1.0.12 \
         @rmdes/indiekit-endpoint-readlater@1.0.5 \
