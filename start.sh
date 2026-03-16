@@ -299,6 +299,16 @@ echo "==> Starting webmention sender background process"
     # Wait 3 minutes before first run (let Eleventy build complete first)
     sleep 180
     while true; do
+        # Safety net: verify the site is serving before attempting to send webmentions.
+        # The real per-post URL check is in the controller, but this avoids unnecessary
+        # JWT generation and HTTP calls when the site is completely down.
+        SITE_STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${CLOUDRON_APP_ORIGIN}/" 2>/dev/null)
+        if [ "$SITE_STATUS" != "200" ]; then
+            echo "[webmention] $(date '+%Y-%m-%d %H:%M:%S') - Site not ready (HTTP $SITE_STATUS), skipping cycle"
+            sleep 300
+            continue
+        fi
+
         # Read SECRET from file (env var not available in subshell)
         WEBMENTION_SECRET=$(cat /app/data/config/.secret 2>/dev/null)
         WEBMENTION_ORIGIN="${CLOUDRON_APP_ORIGIN}"
