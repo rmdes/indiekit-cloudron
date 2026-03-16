@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=307
+ARG CACHE_BUST=308
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -53,20 +53,20 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video \
         @rmdes/indiekit-post-type-page@1.0.4 \
-        @rmdes/indiekit-endpoint-github@1.2.3 \
-        @rmdes/indiekit-endpoint-funkwhale@1.0.11 \
+        @rmdes/indiekit-endpoint-github@1.2.4 \
+        @rmdes/indiekit-endpoint-funkwhale@1.0.12 \
         @rmdes/indiekit-endpoint-lastfm@1.0.12 \
         @rmdes/indiekit-endpoint-youtube@1.2.3 \
         @rmdes/indiekit-endpoint-rss@1.0.14 \
         @rmdes/indiekit-endpoint-microsub@1.0.49 \
         @rmdes/indiekit-syndicator-indienews@1.0.1 \
-        @rmdes/indiekit-endpoint-podroll@1.0.11 \
+        @rmdes/indiekit-endpoint-podroll@1.0.12 \
         @rmdes/indiekit-endpoint-webmention-sender@1.0.8 \
         @rmdes/indiekit-endpoint-blogroll@1.0.23 \
         @rmdes/indiekit-endpoint-homepage@1.0.22 \
         @rmdes/indiekit-endpoint-cv@1.0.24 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
-        @rmdes/indiekit-endpoint-files@1.0.1 \
+        @rmdes/indiekit-endpoint-files@1.0.2 \
         @rmdes/indiekit-endpoint-conversations@2.3.0 \
         @rmdes/indiekit-endpoint-comments@1.0.12 \
         @rmdes/indiekit-endpoint-readlater@1.0.5 \
