@@ -218,6 +218,47 @@ cloudron exec --app rmendes.net
 
 **CRITICAL: Always use `cloudron build`, never `docker build` directly.**
 
+### Checking if the Eleventy Release Swap Happened
+
+After `cloudron update` or `cloudron restart`, the old site continues serving while Eleventy builds a new release. Use these commands to monitor progress:
+
+```bash
+# 1. Check which release is currently being served (symlink target)
+cloudron exec --app rmendes.net -- readlink /app/data/site
+# Returns e.g. /app/data/releases/1773764294
+
+# 2. List all releases (newest first by timestamp name)
+cloudron exec --app rmendes.net -- ls -lt /app/data/releases/
+
+# 3. Check if Eleventy is still building (shows --output=<new release>)
+cloudron exec --app rmendes.net -- bash -c 'ps aux | grep eleventy | grep -v grep'
+
+# 4. Check build progress — pagefind directory means build is nearly done
+cloudron exec --app rmendes.net -- bash -c 'ls /app/data/releases/<NEW_TIMESTAMP>/pagefind/ 2>/dev/null | head -3'
+
+# 5. Check OG image count (OG phase completes before template rendering)
+cloudron exec --app rmendes.net -- bash -c 'ls /app/data/releases/<NEW_TIMESTAMP>/og/ 2>/dev/null | wc -l'
+
+# 6. Search logs for swap confirmation message
+cloudron logs --app rmendes.net 2>&1 | grep -i "swap"
+```
+
+**Build phases (in order):**
+1. OG image generation (~2 min, batch spawning)
+2. Template rendering (3,400+ pages)
+3. Pagefind indexing
+4. Atomic symlink swap (`mv -T`) + nginx reload
+5. Watcher starts with `--watch --incremental`
+
+**Timing reference:**
+- Warm build (caches populated): ~3-5 min
+- Cold build (empty caches): ~20 min
+- The symlink does NOT change until the entire build + pagefind completes
+
+**How to tell the swap happened:**
+- `readlink /app/data/site` points to the NEW release timestamp
+- The Eleventy process switches from `--output=<release>` to `--watch --incremental`
+
 ## Architecture
 
 ### Directory Structure
