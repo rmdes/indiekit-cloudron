@@ -115,6 +115,7 @@ http {
         location ~* ^/(css|js|fonts|og|pagefind|img|images|graph)/.*\.(jpg|jpeg|png|webp|avif|gif|svg|ico)$ {
             expires 30d;
             add_header Cache-Control "public";
+            add_header Access-Control-Allow-Origin "*";
         }
 
         # Indiekit admin and API endpoints - proxy to Indiekit
@@ -561,6 +562,50 @@ http {
         }
 
         # =================================================================
+
+        # ─── Mastodon Client API ─────────────────────────────────────
+        # Proxy /api/v1/*, /api/v2/* to Indiekit for Mastodon-compatible
+        # clients (Phanpy, Elk, etc.). CORS handled at nginx level because
+        # Express 5 auto-responds to OPTIONS before router middleware runs.
+        location /api/ {
+            # CORS preflight
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, HEAD, POST, PUT, DELETE, PATCH' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Idempotency-Key' always;
+                add_header 'Access-Control-Max-Age' 86400;
+                return 204;
+            }
+
+            # Strip CORS headers from Express to avoid duplicates
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Expose-Headers';
+
+            # CORS headers on actual responses
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, HEAD, POST, PUT, DELETE, PATCH' always;
+            add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Idempotency-Key' always;
+            add_header 'Access-Control-Expose-Headers' 'Link' always;
+
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+        }
+
+        location /oauth {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+
+            # OAuth authorize page needs relaxed CSP for redirect to external clients
+            add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; base-uri 'self'; form-action *" always;
+        }
 
         # ActivityPub federation endpoint — proxy to Indiekit
         # Handles: actor, inbox, outbox, followers, following, admin UI
