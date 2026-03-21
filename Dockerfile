@@ -37,7 +37,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-linkedin@1.0.5 \
         @rmdes/indiekit-endpoint-micropub@1.0.0-beta.30 \
         @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.38 \
-        @rmdes/indiekit-endpoint-share@1.0.3 \
+        @rmdes/indiekit-endpoint-share@1.0.4 \
         @indiekit/endpoint-json-feed \
         @rmdes/indiekit-endpoint-webmention-io@1.0.7 \
         @indiekit/post-type-article \
@@ -58,19 +58,19 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-lastfm@1.0.12 \
         @rmdes/indiekit-endpoint-youtube@1.2.3 \
         @rmdes/indiekit-endpoint-rss@1.0.14 \
-        @rmdes/indiekit-endpoint-microsub@1.0.49 \
+        @rmdes/indiekit-endpoint-microsub@1.0.50 \
         @rmdes/indiekit-syndicator-indienews@1.0.1 \
-        @rmdes/indiekit-endpoint-podroll@1.0.12 \
+        @rmdes/indiekit-endpoint-podroll@1.0.13 \
         @rmdes/indiekit-endpoint-webmention-sender@1.0.8 \
         @rmdes/indiekit-endpoint-blogroll@1.0.23 \
-        @rmdes/indiekit-endpoint-homepage@1.0.22 \
-        @rmdes/indiekit-endpoint-cv@1.0.24 \
+        @rmdes/indiekit-endpoint-homepage@1.0.23 \
+        @rmdes/indiekit-endpoint-cv@1.0.25 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
-        @rmdes/indiekit-endpoint-files@1.0.2 \
-        @rmdes/indiekit-endpoint-conversations@2.3.0 \
-        @rmdes/indiekit-endpoint-comments@1.0.12 \
-        @rmdes/indiekit-endpoint-readlater@1.0.5 \
-        @rmdes/indiekit-endpoint-activitypub@3.6.7
+        @rmdes/indiekit-endpoint-files@1.0.3 \
+        @rmdes/indiekit-endpoint-conversations@2.3.1 \
+        @rmdes/indiekit-endpoint-comments@1.0.13 \
+        @rmdes/indiekit-endpoint-readlater@1.0.6 \
+        @rmdes/indiekit-endpoint-activitypub@3.6.8
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
