@@ -36,7 +36,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-syndicator-linkedin@1.0.2 \
         @rmdes/indiekit-endpoint-linkedin@1.0.5 \
         @rmdes/indiekit-endpoint-micropub@1.0.0-beta.30 \
-        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.37 \
+        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-share@1.0.3 \
         @indiekit/endpoint-json-feed \
         @rmdes/indiekit-endpoint-webmention-io@1.0.7 \
