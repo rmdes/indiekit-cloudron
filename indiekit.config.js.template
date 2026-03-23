@@ -13,6 +13,8 @@
  * - MASTODON_ACCESS_TOKEN: Mastodon access token
  * - BLUESKY_HANDLE: Your Bluesky handle (e.g., you.bsky.social)
  * - BLUESKY_PASSWORD: Bluesky app password
+ * - BLUESKY_PDS_URL: Bluesky PDS URL (default: https://bsky.social)
+ * - BLUESKY_PDS_HANDLE: Your Bluesky handle for PDS OAuth (e.g., you.bsky.social)
  * - LINKEDIN_ACCESS_TOKEN: LinkedIn access token (or use OAuth flow at /linkedin)
  * - LINKEDIN_AUTHOR_NAME: Your name on LinkedIn
  * - LINKEDIN_PROFILE_URL: Your LinkedIn profile URL
@@ -76,6 +78,7 @@ export default {
     // Syndicators (custom versions with external like support)
     "@rmdes/indiekit-syndicator-mastodon",
     "@rmdes/indiekit-syndicator-bluesky",
+    "@rmdes/indiekit-endpoint-bluesky-pds",
     "@rmdes/indiekit-syndicator-linkedin",
     "@rmdes/indiekit-endpoint-linkedin",
     "@rmdes/indiekit-syndicator-indienews",
@@ -126,6 +129,15 @@ export default {
     checked: !!process.env.BLUESKY_PASSWORD,
     syndicateExternalLikes: true, // Post likes of external URLs as posts
     syndicateExternalReposts: true, // Post reposts of external URLs as posts
+  },
+
+  // Bluesky PDS endpoint — AT Protocol record management via OAuth
+  // Admin UI at /bluesky-pds, handles site.standard.publication sync
+  "@rmdes/indiekit-endpoint-bluesky-pds": {
+    pdsUrl: process.env.BLUESKY_PDS_URL || "https://bsky.social",
+    handle: process.env.BLUESKY_PDS_HANDLE || "",
+    enableStandardSiteDocument: true,
+    mountPath: "/bluesky-pds",
   },
 
   // LinkedIn syndication (optional - configure via env vars)
