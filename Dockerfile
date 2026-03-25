@@ -32,7 +32,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/preset-hugo \
         @indiekit/store-file-system \
         @rmdes/indiekit-syndicator-mastodon@1.0.9 \
-        @rmdes/indiekit-syndicator-bluesky@1.0.20 \
+        @rmdes/indiekit-syndicator-bluesky@1.0.21 \
         @rmdes/indiekit-syndicator-linkedin@1.0.2 \
         @rmdes/indiekit-endpoint-linkedin@1.0.5 \
         @rmdes/indiekit-endpoint-micropub@1.0.0-beta.30 \
@@ -68,7 +68,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-files@1.0.3 \
         @rmdes/indiekit-endpoint-conversations@2.3.2 \
-        @rmdes/indiekit-endpoint-comments@1.0.13 \
+        @rmdes/indiekit-endpoint-comments@1.0.14 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
         @rmdes/indiekit-endpoint-activitypub@3.9.3
 # TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
