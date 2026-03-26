@@ -68,7 +68,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-files@1.0.3 \
         @rmdes/indiekit-endpoint-conversations@2.3.2 \
-        @rmdes/indiekit-endpoint-comments@1.0.15 \
+        @rmdes/indiekit-endpoint-comments@1.0.16 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
         @rmdes/indiekit-endpoint-activitypub@3.9.3
 # TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
