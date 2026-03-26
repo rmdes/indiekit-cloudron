@@ -289,8 +289,16 @@ export default {
   // Comments - IndieAuth-based comment system for blog posts
   // Admin dashboard at /comments, JF2 API at /comments/api/comments
   // Auth flow at /comments/api/auth, submit at /comments/api/submit
+  // replyTargets maps detected platform → syndicator service.name for frontend replies.
+  // With self-hosted AP: mastodon/activitypub → "ActivityPub (Fediverse)"
+  // Without AP (external account only): mastodon → "Mastodon"
   "@rmdes/indiekit-endpoint-comments": {
     mountPath: "/comments",
+    replyTargets: {
+      mastodon: "ActivityPub (Fediverse)",
+      activitypub: "ActivityPub (Fediverse)",
+      bluesky: "Bluesky",
+    },
   },
 
   // ActivityPub federation — makes the site a full AP actor
