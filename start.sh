@@ -397,6 +397,9 @@ echo "==> Old site continues serving while new build runs"
 # exceeds the 2048MB heap within the 3072MB cgroup limit).
 # If you need to force a fresh fetch, delete specific cache files manually.
 
+# Remove readiness signal — plugins will defer background tasks until build completes
+rm -f /app/data/.indiekit-ready
+
 # Build new release to a timestamped directory
 RELEASE_TS=$(date +%s)
 NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
@@ -443,6 +446,11 @@ if [ "$INITIAL_BUILD_OK" = true ]; then
     # Reload nginx to resolve the new symlink target
     nginx -s reload
     echo "==> nginx reloaded, new release is live"
+
+    # Signal readiness — plugins can now start background tasks
+    touch /app/data/.indiekit-ready
+    chown cloudron:cloudron /app/data/.indiekit-ready
+    echo "==> Readiness signal created, plugins starting deferred tasks"
 
     # Cleanup: keep only 2 most recent releases for rollback capability
     echo "==> Cleaning up old releases (keeping 2)"

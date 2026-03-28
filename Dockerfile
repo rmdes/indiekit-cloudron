@@ -39,7 +39,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-share@1.0.4 \
         @indiekit/endpoint-json-feed \
-        @rmdes/indiekit-endpoint-webmention-io@1.0.7 \
+        @rmdes/indiekit-endpoint-webmention-io@1.0.8 \
         @indiekit/post-type-article \
         @indiekit/post-type-audio \
         @indiekit/post-type-bookmark \
@@ -53,24 +53,25 @@ RUN chown -R cloudron:cloudron /app/code && \
         @indiekit/post-type-rsvp \
         @indiekit/post-type-video \
         @rmdes/indiekit-post-type-page@1.0.4 \
-        @rmdes/indiekit-endpoint-github@1.2.5 \
-        @rmdes/indiekit-endpoint-funkwhale@1.0.12 \
-        @rmdes/indiekit-endpoint-lastfm@1.0.12 \
+        @rmdes/indiekit-endpoint-github@1.2.7 \
+        @rmdes/indiekit-endpoint-funkwhale@1.0.13 \
+        @rmdes/indiekit-endpoint-lastfm@1.0.13 \
         @rmdes/indiekit-endpoint-youtube@1.2.3 \
-        @rmdes/indiekit-endpoint-rss@1.0.14 \
-        @rmdes/indiekit-endpoint-microsub@1.0.60 \
+        @rmdes/indiekit-endpoint-rss@1.0.15 \
+        @rmdes/indiekit-endpoint-microsub@1.0.61 \
         @rmdes/indiekit-syndicator-indienews@1.0.1 \
-        @rmdes/indiekit-endpoint-podroll@1.0.13 \
+        @rmdes/indiekit-endpoint-podroll@1.0.14 \
         @rmdes/indiekit-endpoint-webmention-sender@1.0.8 \
-        @rmdes/indiekit-endpoint-blogroll@1.0.23 \
+        @rmdes/indiekit-endpoint-blogroll@1.0.24 \
         @rmdes/indiekit-endpoint-homepage@1.0.24 \
-        @rmdes/indiekit-endpoint-cv@1.0.25 \
+        @rmdes/indiekit-endpoint-cv@1.0.26 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-files@1.0.3 \
-        @rmdes/indiekit-endpoint-conversations@2.4.1 \
+        @rmdes/indiekit-endpoint-conversations@2.4.2 \
         @rmdes/indiekit-endpoint-comments@1.0.16 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
-        @rmdes/indiekit-endpoint-activitypub@3.10.3
+        @rmdes/indiekit-startup-gate@1.0.0 \
+        @rmdes/indiekit-endpoint-activitypub@3.10.5
 # TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
 #       @rmdes/indiekit-endpoint-bluesky-pds@0.1.0
 # Until then, install locally via: npm install /path/to/indiekit-endpoint-bluesky-pds
