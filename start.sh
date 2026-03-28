@@ -513,6 +513,25 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
     done
 ) &
 
-# Wait for Indiekit process (keeps container running)
-echo "==> All services started, waiting for Indiekit..."
-wait $INDIEKIT_PID
+# Indiekit watchdog — auto-restart on crash (e.g., OOM during Eleventy build)
+echo "==> All services started, watching Indiekit..."
+while true; do
+    wait $INDIEKIT_PID
+    EXIT_CODE=$?
+    echo "==> Indiekit exited with code ${EXIT_CODE} — restarting in 5 seconds..."
+    sleep 5
+
+    # Restart Indiekit
+    cd /app/code
+    gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=768 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+    INDIEKIT_PID=$!
+
+    # Wait for it to be ready before looping back to watch
+    for i in {1..30}; do
+        if curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ | grep -q "200\|302"; then
+            echo "==> Indiekit restarted successfully (PID ${INDIEKIT_PID})"
+            break
+        fi
+        sleep 1
+    done
+done
