@@ -194,7 +194,7 @@ nginx -c /run/nginx.conf &
 # file for memory leak analysis (open in Chrome DevTools → Memory → Load).
 echo "==> Starting Indiekit on port ${PORT}"
 cd /app/code
-gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=768 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
 
 # Wait for Indiekit to be ready (max 30 seconds)
@@ -523,7 +523,7 @@ while true; do
 
     # Restart Indiekit
     cd /app/code
-    gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=768 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+    gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
     INDIEKIT_PID=$!
 
     # Wait for it to be ready before looping back to watch
