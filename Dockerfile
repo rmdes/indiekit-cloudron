@@ -67,7 +67,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-cv@1.0.25 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-files@1.0.3 \
-        @rmdes/indiekit-endpoint-conversations@2.4.0 \
+        @rmdes/indiekit-endpoint-conversations@2.4.1 \
         @rmdes/indiekit-endpoint-comments@1.0.16 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
         @rmdes/indiekit-endpoint-activitypub@3.10.3
