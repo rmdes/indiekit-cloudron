@@ -192,9 +192,12 @@ nginx -c /run/nginx.conf &
 # for Eleventy build (2048MB) which runs concurrently. Total 2816MB < 3072MB limit.
 # --heapsnapshot-signal=SIGUSR2: send `kill -USR2 <pid>` to write a .heapsnapshot
 # file for memory leak analysis (open in Chrome DevTools → Memory → Load).
-echo "==> Starting Indiekit on port ${PORT}"
+# Signal plugins to defer background sync until after Eleventy build
+# Plugins check INDIEKIT_DEFER_BACKGROUND_SYNC at init time
+export INDIEKIT_DEFER_BACKGROUND_SYNC=1
+echo "==> Starting Indiekit on port ${PORT} (background sync deferred)"
 cd /app/code
-gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+gosu cloudron:cloudron env INDIEKIT_DEFER_BACKGROUND_SYNC=1 NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
 
 # Wait for Indiekit to be ready (max 30 seconds)
@@ -431,6 +434,11 @@ else
     rm -rf "${NEW_RELEASE}"
 fi
 
+# Undefer background sync — Eleventy initial build is done, plugins can now sync
+# Touch a marker file that plugins can poll for
+touch /tmp/indiekit-ready-for-sync
+echo "==> Background sync undeferred — plugins may now start sync operations"
+
 # Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
 # Wrapped in a supervisor loop that restarts on crash with exponential backoff
 # The watcher writes to /app/data/site (current release via symlink)
@@ -523,7 +531,7 @@ while true; do
 
     # Restart Indiekit
     cd /app/code
-    gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-signal=SIGUSR2" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+    gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
     INDIEKIT_PID=$!
 
     # Wait for it to be ready before looping back to watch
