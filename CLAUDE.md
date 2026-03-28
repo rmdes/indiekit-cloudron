@@ -319,6 +319,30 @@ Cleanup old releases (keep 2 for rollback)
 
 **Rollback:** `ln -sfn /app/data/releases/OLD_TIMESTAMP /app/data/site && nginx -s reload`
 
+### Startup Gate — Plugin Background Task Deferral
+
+All `@rmdes/*` plugins with background tasks use `@rmdes/indiekit-startup-gate` to defer heavy work until after Eleventy's first successful build. This prevents plugins from competing for the ~2.8 GB that Eleventy needs during its build.
+
+**Signal file lifecycle in `start.sh`:**
+
+```
+start.sh removes /app/data/.indiekit-ready    ← BEFORE Indiekit starts (line ~195)
+Indiekit starts → plugins call waitForReady() → file not found → wait
+Eleventy initial build runs (may succeed or OOM)
+  Success: start.sh creates signal after swap + nginx reload
+  Failure: watcher starts, does full build
+Eleventy's eleventy.after hook creates signal  ← covers BOTH paths
+Plugins detect signal → start background tasks
+```
+
+**Key implementation details:**
+- `rm -f /app/data/.indiekit-ready` MUST be before the `node ... indiekit ... serve` line in start.sh
+- `touch /app/data/.indiekit-ready` is in the success branch of start.sh (after swap)
+- `eleventy.config.js` also creates the signal in `eleventy.after` (covers watcher's first build when initial build OOMs)
+- The signal uses `!existsSync()` guard so it's only created once per boot
+
+**When adding a new plugin to the Dockerfile:** If the plugin has background tasks, verify it uses `@rmdes/indiekit-startup-gate`. See workspace CLAUDE.md for the full pattern.
+
 ## CRITICAL: npm Overrides for Forked Default Plugins
 
 Indiekit ships default plugins (defined in `packages/indiekit/config/defaults.js`) as dependencies of `@indiekit/indiekit`. When we fork one of these (e.g., `@indiekit/endpoint-share` → `@rmdes/indiekit-endpoint-share`), we use **npm overrides** in `package.json` to transparently swap them:
