@@ -188,10 +188,33 @@ echo "==> Starting nginx on port 3000"
 nginx -c /run/nginx.conf &
 
 # Start Indiekit in background first (so API is available for Eleventy build)
-echo "==> Starting Indiekit on port ${PORT}"
+# Heap: 1024MB for Indiekit + plugins. If crashing at startup, check /tmp for heap snapshots.
+# --heapsnapshot-near-heap-limit=1: auto-snapshot before OOM (writes to --diagnostic-dir)
+# --heapsnapshot-signal=SIGUSR2: manual snapshot via kill -USR2 <pid>
+# --abort-on-uncaught-exception: core dump on unhandled errors
+echo "==> Starting Indiekit on port ${PORT} (heap: 1024MB, diagnostic snapshots enabled)"
 cd /app/code
-gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-near-heap-limit=1 --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
+
+# Monitor Indiekit process for crashes (background)
+(
+    wait $INDIEKIT_PID 2>/dev/null
+    EXIT_CODE=$?
+    echo "[INDIEKIT CRASH] Process exited with code ${EXIT_CODE} at $(date '+%Y-%m-%d %H:%M:%S')"
+    # Check for heap snapshots
+    SNAPSHOTS=$(ls /tmp/Heap.*.heapsnapshot 2>/dev/null)
+    if [ -n "$SNAPSHOTS" ]; then
+        echo "[INDIEKIT CRASH] Heap snapshot(s) written:"
+        ls -lh /tmp/Heap.*.heapsnapshot 2>/dev/null
+        # Copy to persistent storage for analysis
+        cp /tmp/Heap.*.heapsnapshot /app/data/config/ 2>/dev/null
+        echo "[INDIEKIT CRASH] Snapshot(s) copied to /app/data/config/ for retrieval"
+    else
+        echo "[INDIEKIT CRASH] No heap snapshots found in /tmp"
+    fi
+    echo "[INDIEKIT CRASH] RSS at exit: $(cat /proc/$INDIEKIT_PID/status 2>/dev/null | grep VmRSS || echo 'process gone')"
+) &
 
 # Wait for Indiekit to be ready (max 30 seconds)
 echo "==> Waiting for Indiekit to be ready..."
