@@ -193,8 +193,11 @@ nginx -c /run/nginx.conf &
 # --heapsnapshot-signal=SIGUSR2: manual snapshot via kill -USR2 <pid>
 # --abort-on-uncaught-exception: core dump on unhandled errors
 echo "==> Starting Indiekit on port ${PORT} (heap: 1536MB, diagnostic snapshots enabled)"
-cd /app/code
-gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1536 --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp" node --heap-snapshot-on-oom node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+# CWD must be writable — V8 --heap-snapshot-on-oom writes to CWD.
+# /app/code is read-only at runtime on Cloudron.
+mkdir -p /tmp/indiekit-diag
+cd /tmp/indiekit-diag
+gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1536 --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp/indiekit-diag" node --heap-snapshot-on-oom /app/code/node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
 
 # Monitor Indiekit process for crashes (background)
@@ -202,16 +205,16 @@ INDIEKIT_PID=$!
     wait $INDIEKIT_PID 2>/dev/null
     EXIT_CODE=$?
     echo "[INDIEKIT CRASH] Process exited with code ${EXIT_CODE} at $(date '+%Y-%m-%d %H:%M:%S')"
-    # Check for heap snapshots
-    SNAPSHOTS=$(ls /tmp/Heap.*.heapsnapshot 2>/dev/null)
+    # Check for heap snapshots (V8 writes to CWD, Node writes to --diagnostic-dir)
+    SNAPSHOTS=$(ls /tmp/indiekit-diag/*.heapsnapshot 2>/dev/null)
     if [ -n "$SNAPSHOTS" ]; then
         echo "[INDIEKIT CRASH] Heap snapshot(s) written:"
-        ls -lh /tmp/Heap.*.heapsnapshot 2>/dev/null
+        ls -lh /tmp/indiekit-diag/*.heapsnapshot 2>/dev/null
         # Copy to persistent storage for analysis
-        cp /tmp/Heap.*.heapsnapshot /app/data/config/ 2>/dev/null
+        cp /tmp/indiekit-diag/*.heapsnapshot /app/data/config/ 2>/dev/null
         echo "[INDIEKIT CRASH] Snapshot(s) copied to /app/data/config/ for retrieval"
     else
-        echo "[INDIEKIT CRASH] No heap snapshots found in /tmp"
+        echo "[INDIEKIT CRASH] No heap snapshots found in /tmp/indiekit-diag/"
     fi
     echo "[INDIEKIT CRASH] RSS at exit: $(cat /proc/$INDIEKIT_PID/status 2>/dev/null | grep VmRSS || echo 'process gone')"
 ) &
