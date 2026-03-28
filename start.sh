@@ -459,6 +459,12 @@ else
     echo "==> Build failed, keeping previous release: ${CURRENT_RELEASE}"
     # Clean up the failed release directory
     rm -rf "${NEW_RELEASE}"
+
+    # Signal readiness even on failed build — the previous release is still serving
+    # and plugins should start their background tasks rather than waiting forever
+    touch /app/data/.indiekit-ready
+    chown cloudron:cloudron /app/data/.indiekit-ready
+    echo "==> Readiness signal created (previous release still serving)"
 fi
 
 # Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
