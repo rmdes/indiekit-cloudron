@@ -192,6 +192,9 @@ nginx -c /run/nginx.conf &
 # --heapsnapshot-near-heap-limit=1: auto-snapshot before OOM (writes to --diagnostic-dir)
 # --heapsnapshot-signal=SIGUSR2: manual snapshot via kill -USR2 <pid>
 # --abort-on-uncaught-exception: core dump on unhandled errors
+# Remove readiness signal BEFORE Indiekit starts — plugins check on init
+rm -f /app/data/.indiekit-ready
+
 echo "==> Starting Indiekit on port ${PORT} (heap: 1536MB, diagnostic snapshots enabled)"
 # CWD must be writable — V8 --heap-snapshot-on-oom writes to CWD.
 # /app/code is read-only at runtime on Cloudron.
@@ -396,9 +399,6 @@ echo "==> Old site continues serving while new build runs"
 # which causes OOM during the initial build (2,352 posts + fresh API data
 # exceeds the 2048MB heap within the 3072MB cgroup limit).
 # If you need to force a fresh fetch, delete specific cache files manually.
-
-# Remove readiness signal — plugins will defer background tasks until build completes
-rm -f /app/data/.indiekit-ready
 
 # Build new release to a timestamped directory
 RELEASE_TS=$(date +%s)
