@@ -192,9 +192,9 @@ nginx -c /run/nginx.conf &
 # --heapsnapshot-near-heap-limit=1: auto-snapshot before OOM (writes to --diagnostic-dir)
 # --heapsnapshot-signal=SIGUSR2: manual snapshot via kill -USR2 <pid>
 # --abort-on-uncaught-exception: core dump on unhandled errors
-echo "==> Starting Indiekit on port ${PORT} (heap: 1024MB, diagnostic snapshots enabled)"
+echo "==> Starting Indiekit on port ${PORT} (heap: 1536MB, diagnostic snapshots enabled)"
 cd /app/code
-gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1024 --heapsnapshot-near-heap-limit=1 --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
+gosu cloudron:cloudron env NODE_OPTIONS="--max-old-space-size=1536 --heapsnapshot-near-heap-limit=1 --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp" node node_modules/@indiekit/indiekit/bin/cli.js serve --config /app/data/config/indiekit.config.js &
 INDIEKIT_PID=$!
 
 # Monitor Indiekit process for crashes (background)
