@@ -71,7 +71,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-comments@1.0.16 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
         @rmdes/indiekit-startup-gate@1.0.0 \
-        @rmdes/indiekit-endpoint-activitypub@3.11.2
+        @rmdes/indiekit-endpoint-activitypub@3.11.3
 # TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
 #       @rmdes/indiekit-endpoint-bluesky-pds@0.1.0
 # Until then, install locally via: npm install /path/to/indiekit-endpoint-bluesky-pds
