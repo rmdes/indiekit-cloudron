@@ -417,8 +417,14 @@ export NODE_OPTIONS="--max-old-space-size=2560"
 export DEBUG="Eleventy:Benchmark*"
 INITIAL_BUILD_OK=false
 # Pagefind runs inside Eleventy's eleventy.after hook (non-incremental builds only)
-gosu cloudron:cloudron ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
+gosu cloudron:cloudron node --heap-snapshot-on-oom ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
     echo "==> Eleventy build failed (likely OOM-killed)"
+    # Check for heap snapshot
+    SNAP=$(ls -t /tmp/*.heapsnapshot 2>/dev/null | head -1)
+    if [ -n "$SNAP" ]; then
+        SNAP_SIZE=$(du -h "$SNAP" | cut -f1)
+        echo "==> Heap snapshot captured: $SNAP ($SNAP_SIZE)"
+    fi
 }
 
 # Only swap if build succeeded — keep serving the old release on failure
