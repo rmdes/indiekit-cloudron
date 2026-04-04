@@ -463,9 +463,9 @@ if [ "$INITIAL_BUILD_OK" = true ]; then
     echo "==> Cleaning up old releases (keeping 2)"
     cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
 else
-    echo "==> Build failed, keeping previous release: ${CURRENT_RELEASE}"
-    # Clean up the failed release directory
-    rm -rf "${NEW_RELEASE}"
+    echo "==> Initial build skipped/failed, keeping previous release: ${CURRENT_RELEASE}"
+    # Clean up the failed release directory (if one was created)
+    [ -n "${NEW_RELEASE}" ] && rm -rf "${NEW_RELEASE}"
     # Note: readiness signal is NOT created here — the watcher will do a full
     # build on start and the eleventy.after hook creates the signal file when
     # that build completes. This ensures plugins don't start until the system
