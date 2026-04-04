@@ -400,32 +400,33 @@ echo "==> Old site continues serving while new build runs"
 # exceeds the 2048MB heap within the 3072MB cgroup limit).
 # If you need to force a fresh fetch, delete specific cache files manually.
 
-# Build new release to a timestamped directory
-RELEASE_TS=$(date +%s)
-NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
-mkdir -p "${NEW_RELEASE}"
-chown cloudron:cloudron "${NEW_RELEASE}"
-
-echo "==> Building Eleventy site to ${NEW_RELEASE}"
-cd /app/pkg/eleventy-site
-# Node.js heap: container has 3.5GB cgroup limit. MongoDB and Redis are Cloudron
-# addons running OUTSIDE this cgroup. Actual in-cgroup processes:
-#   Indiekit ~300-400MB RSS + Eleventy build + nginx ~50MB
-# At 2560MB heap → ~2800MB RSS + 400 + 50 ≈ 3250MB < 3584MB limit.
-# Must match watcher heap (line ~437) — initial build processes same 3,400+ pages.
-export NODE_OPTIONS="--max-old-space-size=2560"
-export DEBUG="Eleventy:Benchmark*"
+# Initial build DISABLED — consistently OOMs because Eleventy (3.9GB peak RSS from
+# V8 heap + Sharp buffers + OG WASM) + Indiekit (~370MB) exceeds the 4GB cgroup.
+# The watcher always succeeds because it starts after the initial build process exits,
+# freeing all memory. The old release serves during the watcher's ~5 min full build.
+# To re-enable: uncomment the block below and comment the INITIAL_BUILD_OK=false line.
 INITIAL_BUILD_OK=false
-# Pagefind runs inside Eleventy's eleventy.after hook (non-incremental builds only)
-gosu cloudron:cloudron node --heap-snapshot-on-oom ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
-    echo "==> Eleventy build failed (likely OOM-killed)"
-    # Check for heap snapshot
-    SNAP=$(ls -t /tmp/*.heapsnapshot 2>/dev/null | head -1)
-    if [ -n "$SNAP" ]; then
-        SNAP_SIZE=$(du -h "$SNAP" | cut -f1)
-        echo "==> Heap snapshot captured: $SNAP ($SNAP_SIZE)"
-    fi
-}
+cd /app/pkg/eleventy-site
+export DEBUG="Eleventy:Benchmark*"
+
+# # Build new release to a timestamped directory
+# RELEASE_TS=$(date +%s)
+# NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
+# mkdir -p "${NEW_RELEASE}"
+# chown cloudron:cloudron "${NEW_RELEASE}"
+#
+# echo "==> Building Eleventy site to ${NEW_RELEASE}"
+# export NODE_OPTIONS="--max-old-space-size=2560"
+# INITIAL_BUILD_OK=false
+# # Pagefind runs inside Eleventy's eleventy.after hook (non-incremental builds only)
+# gosu cloudron:cloudron node --heap-snapshot-on-oom ./node_modules/.bin/eleventy --output="${NEW_RELEASE}" && INITIAL_BUILD_OK=true || {
+#     echo "==> Eleventy build failed (likely OOM-killed)"
+#     SNAP=$(ls -t /tmp/*.heapsnapshot 2>/dev/null | head -1)
+#     if [ -n "$SNAP" ]; then
+#         SNAP_SIZE=$(du -h "$SNAP" | cut -f1)
+#         echo "==> Heap snapshot captured: $SNAP ($SNAP_SIZE)"
+#     fi
+# }
 
 # Only swap if build succeeded — keep serving the old release on failure
 if [ "$INITIAL_BUILD_OK" = true ]; then
