@@ -35,7 +35,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-syndicator-bluesky@1.0.21 \
         @rmdes/indiekit-syndicator-linkedin@1.0.2 \
         @rmdes/indiekit-endpoint-linkedin@1.0.5 \
-        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.30 \
+        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.31 \
         @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-share@1.0.4 \
         @indiekit/endpoint-json-feed \
@@ -61,7 +61,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-microsub@1.0.61 \
         @rmdes/indiekit-syndicator-indienews@1.0.1 \
         @rmdes/indiekit-endpoint-podroll@1.0.14 \
-        @rmdes/indiekit-endpoint-webmention-sender@1.0.8 \
+        @rmdes/indiekit-endpoint-webmention-sender@1.0.9 \
         @rmdes/indiekit-endpoint-blogroll@1.0.24 \
         @rmdes/indiekit-endpoint-homepage@1.0.24 \
         @rmdes/indiekit-endpoint-cv@1.0.26 \
