@@ -48,6 +48,7 @@ Thumbs.db
 # Cloudron
 *.tar.gz
 
-# Development files
+# Development / testing
 FRONTEND_PLAN.md
 indieweb.txt
+.playwright-cli/
