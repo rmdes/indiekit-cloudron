@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=317
+ARG CACHE_BUST=318
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -71,7 +71,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-comments@1.0.16 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
         @rmdes/indiekit-startup-gate@1.0.0 \
-        @rmdes/indiekit-endpoint-activitypub@3.13.4
+        @rmdes/indiekit-endpoint-activitypub@3.13.6
 # TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
 #       @rmdes/indiekit-endpoint-bluesky-pds@0.1.0
 # Until then, install locally via: npm install /path/to/indiekit-endpoint-bluesky-pds
