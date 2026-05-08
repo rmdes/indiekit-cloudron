@@ -9,8 +9,11 @@ An IndieWeb-ready blog platform for [Cloudron](https://cloudron.io). Deploy your
 - **Webmentions** - Receive and display likes, reposts, and replies
 - **IndieAuth** - Sign in with your domain
 - **Microformats2** - Full h-entry, h-card, h-feed, h-cite markup
-- **POSSE** - Syndicate to Mastodon and Bluesky
+- **POSSE** - Syndicate to Mastodon, Bluesky, IndieNews, and LinkedIn
 - **Bridgy** - Content classes for cross-posting
+- **ActivityPub** - Native fediverse federation via Fedify (actor, inbox, outbox, followers/following, Mastodon migration)
+- **Mastodon Client API** - Compatible with Phanpy, Elk, Moshidon, Fedilab — post and read your timeline from any Mastodon client
+- **Microsub** - Built-in social reader with feed subscriptions and channels
 
 ### Post Types
 - Articles (long-form)
@@ -35,8 +38,21 @@ An IndieWeb-ready blog platform for [Cloudron](https://cloudron.io). Deploy your
 ### Optional Integrations
 - **GitHub** - Display activity, starred repos, contributions
 - **Funkwhale** - Show listening history
-- **YouTube** - Display channel activity
-- **CV/Resume** - Optional homepage sections
+- **Last.fm** - Show scrobbles, loved tracks, statistics
+- **YouTube** - Display channel activity, latest videos, live status
+- **RSS reader** - Aggregate feeds, cache in MongoDB
+- **Microsub** - Social reader with channels and feed subscriptions
+- **Blogroll** - Aggregate blogs from OPML/Microsub
+- **Podroll** - Aggregate podcast episodes
+- **Conversations** - Cross-platform notification aggregation (Mastodon, Bluesky, ActivityPub)
+- **Comments** - Visitor comments via IndieAuth/RelMeAuth
+- **Read Later** - Save URLs for later consumption
+- **CV/Resume** - Optional homepage sections with admin editor
+- **Homepage builder** - Drag-drop sections from CV, GitHub, Funkwhale, Last.fm, etc.
+- **LinkedIn** - OAuth + syndication to LinkedIn
+
+### Post Type Plugins
+- **Pages** - Slash pages (`/about`, `/now`, `/uses`) via `@rmdes/indiekit-post-type-page`
 
 ## Installation
 
@@ -288,29 +304,53 @@ Edit files in `eleventy-site/`:
 
 ## Indiekit Plugins
 
-This deployment includes these Indiekit plugins:
+This deployment includes these Indiekit plugins. See [`Dockerfile`](Dockerfile) for installed versions and [`indiekit.config.js.template`](indiekit.config.js.template) for the active runtime list.
 
-- `@rmdes/indiekit-preset-eleventy` - Eleventy content paths (permalink fix)
+### Core (forks of upstream defaults)
+- `@rmdes/indiekit-preset-eleventy` - Eleventy preset (permalink fix for pages)
 - `@indiekit/store-file-system` - Local file storage
-- `@rmdes/indiekit-syndicator-mastodon` - Mastodon syndication
-- `@rmdes/indiekit-syndicator-bluesky` - Bluesky syndication
-- `@rmdes/indiekit-endpoint-syndicate` - Syndication endpoint
-- `@indiekit/endpoint-json-feed` - JSON feed
+- `@rmdes/indiekit-endpoint-auth` - IndieAuth fork (custom auth fixes)
+- `@rmdes/indiekit-endpoint-micropub` - Micropub fork (typeConfig validation)
+- `@rmdes/indiekit-endpoint-syndicate` - Syndication endpoint fork
+- `@rmdes/indiekit-endpoint-posts` - Posts endpoint fork (syndicate form)
+- `@rmdes/indiekit-endpoint-files` - Files endpoint fork (multi-file upload)
+- `@rmdes/indiekit-endpoint-share` - Share endpoint fork (type selection)
 - `@rmdes/indiekit-endpoint-webmention-io` - Webmention.io integration
-- `@rmdes/indiekit-endpoint-github` - GitHub activity
-- `@rmdes/indiekit-endpoint-funkwhale` - Funkwhale integration
-- `@rmdes/indiekit-endpoint-lastfm` - Last.fm scrobbles
-- `@rmdes/indiekit-endpoint-youtube` - YouTube integration
-- `@rmdes/indiekit-endpoint-rss` - RSS feed reader
+- `@rmdes/indiekit-frontend` - Frontend fork (floating toolbar, service worker)
+- `@indiekit/endpoint-json-feed` - JSON feed
+
+### Federation & Social
+- `@rmdes/indiekit-endpoint-activitypub` - **ActivityPub federation via Fedify** — actor, inbox, outbox, followers/following, Mastodon migration, Mastodon Client API
 - `@rmdes/indiekit-endpoint-microsub` - Microsub social reader
-- `@rmdes/indiekit-endpoint-blogroll` - Blog aggregator
-- `@rmdes/indiekit-endpoint-podroll` - Podcast aggregator
+- `@rmdes/indiekit-endpoint-conversations` - Conversation aggregation across Mastodon/Bluesky/ActivityPub
+- `@rmdes/indiekit-endpoint-comments` - Visitor comments via IndieAuth/RelMeAuth
 - `@rmdes/indiekit-endpoint-webmention-sender` - Webmention sender
-- `@rmdes/indiekit-syndicator-indienews` - IndieNews syndication
+- `@rmdes/indiekit-endpoint-bluesky-pds` - Bluesky PDS integration
+
+### Syndication
+- `@rmdes/indiekit-syndicator-mastodon` - Mastodon syndication (with external like/repost)
+- `@rmdes/indiekit-syndicator-bluesky` - Bluesky syndication (with external like/repost)
+- `@rmdes/indiekit-syndicator-indienews` - IndieNews submission
 - `@rmdes/indiekit-syndicator-linkedin` - LinkedIn syndication
-- `@rmdes/indiekit-endpoint-linkedin` - LinkedIn OAuth
-- `@rmdes/indiekit-endpoint-homepage` - Homepage customization
-- `@rmdes/indiekit-endpoint-cv` - CV/Resume sections
+- `@rmdes/indiekit-endpoint-linkedin` - LinkedIn OAuth endpoint
+
+### Aggregation & Feeds
+- `@rmdes/indiekit-endpoint-rss` - RSS feed reader
+- `@rmdes/indiekit-endpoint-blogroll` - Blog aggregator (OPML/Microsub)
+- `@rmdes/indiekit-endpoint-podroll` - Podcast aggregator (FreshRSS, OPML)
+
+### Identity & Activity
+- `@rmdes/indiekit-endpoint-github` - GitHub activity (commits, stars, contributions)
+- `@rmdes/indiekit-endpoint-funkwhale` - Funkwhale listening history
+- `@rmdes/indiekit-endpoint-lastfm` - Last.fm scrobbles
+- `@rmdes/indiekit-endpoint-youtube` - YouTube channel activity
+- `@rmdes/indiekit-endpoint-cv` - CV/Resume management
+- `@rmdes/indiekit-endpoint-homepage` - Drag-drop homepage builder
+- `@rmdes/indiekit-endpoint-readlater` - Save URLs for later
+
+### Post Types & Infrastructure
+- `@rmdes/indiekit-post-type-page` - Slash pages (`/about`, `/now`, `/uses`)
+- `@rmdes/indiekit-startup-gate` - Defers plugin background tasks until after first Eleventy build (memory contention prevention)
 
 ## Credits
 

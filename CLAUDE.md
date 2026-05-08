@@ -102,6 +102,14 @@ This project uses a **template + override** pattern for configuration files:
 - `nginx.conf.template` / `nginx.conf.rmendes`
 - `redirects.map.template` / `redirects.map.rmendes`
 
+### CRITICAL: `overrides/eleventy-site/` Shadows the Submodule
+
+A separate mechanism from the `.template`/`.rmendes` system: the `overrides/eleventy-site/` directory contains files that `make prepare` copies *over* the submodule before the Docker build. Anything in `overrides/eleventy-site/` wins over the same path in the submodule.
+
+**Trap to avoid:** When a `_data/*.js` file in the theme submodule is converted from static (hardcoded) to dynamic (reads from a plugin's JSON file), the corresponding override in `overrides/eleventy-site/_data/*.js` MUST be deleted. Otherwise `make prepare` keeps copying the stale static override on top of the new dynamic file, and the site renders old data forever — regardless of what the plugin admin UI says.
+
+**Debugging tip:** If Eleventy renders stale `_data/*` content despite the plugin's JSON file being correct, check `overrides/eleventy-site/_data/` for shadow files. (Historical example: `cv.js` was masked this way until the override was removed.)
+
 ### Adding a New Plugin
 
 When adding a new Indiekit plugin, update ALL of these:
@@ -112,29 +120,21 @@ When adding a new Indiekit plugin, update ALL of these:
 4. **nginx.conf.template** - Add location block if plugin has routes
 5. **nginx.conf.rmendes** - Add location block if plugin has routes
 
-### Current Required Plugins
+### Source of Truth for Plugin List
 
-These MUST be in the config (check both `.template` and `.rmendes`):
+**The canonical plugin list lives in two places — do NOT duplicate it in this doc:**
 
-```javascript
-plugins: [
-  "@rmdes/indiekit-preset-eleventy",  // NOT @indiekit/preset-eleventy!
-  "@indiekit/store-file-system",
-  "@indiekit/syndicator-mastodon",
-  "@indiekit/syndicator-bluesky",
-  "@indiekit/endpoint-syndicate",
-  "@indiekit/endpoint-json-feed",
-  "@rmdes/indiekit-endpoint-github",
-  "@rmdes/indiekit-endpoint-funkwhale",
-  "@rmdes/indiekit-endpoint-lastfm",
-  "@rmdes/indiekit-endpoint-youtube",
-  "@rmdes/indiekit-endpoint-rss",
-  "@rmdes/indiekit-endpoint-microsub",
-  "@rmdes/indiekit-endpoint-webmentions-proxy",
-  "@indiekit/endpoint-webmention-io",
-  // ... post types
-]
-```
+1. **`Dockerfile`** — the `npm install` command lists every package version installed in the image. Source of truth for *which versions* are deployed.
+2. **`indiekit.config.js.template`** (and `.rmendes`) — the `plugins:` array lists every plugin loaded at runtime. Source of truth for *which plugins are active*.
+
+When auditing or updating plugins, read those two files. This doc previously inlined a partial list that grew silently out of date as plugins were added.
+
+**Forks vs. originals (mechanism reminder):**
+- A **fork of a default plugin** (e.g. `@rmdes/indiekit-endpoint-share` replacing `@indiekit/endpoint-share`) goes in `package.json` `overrides` — NOT in the config `plugins:` array. The default plugin loader reads `@indiekit/endpoint-share` and npm's override transparently swaps in the fork.
+- A **new plugin** with no upstream equivalent (e.g. `@rmdes/indiekit-endpoint-activitypub`) goes in `Dockerfile` AND the config `plugins:` array.
+- See workspace `CLAUDE.md` for the full forks/originals matrix.
+
+**Do NOT add the deprecated `@rmdes/indiekit-endpoint-webmentions-proxy`** — it has been superseded by `@rmdes/indiekit-endpoint-webmention-io`.
 
 ### CRITICAL: preset-eleventy Fork
 
@@ -376,6 +376,7 @@ Two files in `patches/` are copied over upstream Indiekit files during Docker bu
 |-------|--------|---------|
 | `patches/routes.js` | `node_modules/@indiekit/indiekit/lib/routes.js` | Remove rate limiting from authenticated routes (prevents 429 behind reverse proxy) |
 | `patches/error.js` | `node_modules/@indiekit/indiekit/lib/middleware/error.js` | Suppress stack traces in production (prevents info leakage) |
+| `patches/indieauth.js` | `node_modules/@indiekit/indiekit/lib/indieauth.js` | Double-gated devMode auth bypass — requires BOTH `devMode: true` in config AND `INDIEKIT_ALLOW_DEV_AUTH=1` env var. Prevents accidental production exposure if devMode is left enabled. |
 
 When upstream Indiekit updates, diff the new files against our patches and re-apply the same principles.
 
@@ -429,7 +430,7 @@ The Cloudron container has a 3.5 GB (3,584 MB) cgroup memory limit shared across
 
 | Process | Heap Cap | Set In | Why |
 |---------|----------|--------|-----|
-| **Indiekit** | 768MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=768"`) | Heap snapshot (Mar 2026) measured 137 MB actual usage; 768 MB gives 5× headroom |
+| **Indiekit** | 1536MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=1536"`) | Raised from 768 MB after observing growth in steady-state RSS as more plugins (ActivityPub, Microsub, Conversations) were added. Mar 2026 heap snapshot showed 137 MB; current 30+ plugin load runs ~300 MB RSS. 1536 MB cap leaves ample headroom without crowding Eleventy's 2560 MB watcher. |
 | **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
 | **Eleventy watcher** | 2560MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | Watcher's initial full build peaks above 2304 MB V8 heap (3,400+ pages in memory). GC hook returns memory to OS after build. |
 | **og-cli** | 512MB | `eleventy.config.js` (`--max-old-space-size=512 --expose-gc`) | V8 heap only uses ~22 MB; cap is safety margin. WASM native memory is the real consumer (not limited by this flag). |
@@ -628,11 +629,13 @@ return {
 After changing Dockerfile or dependencies, increment CACHE_BUST:
 
 ```dockerfile
-# Increment to force rebuild
-ARG CACHE_BUST=47  # Change to 48, 49, etc.
+# Increment to force rebuild — read the current value from the Dockerfile
+ARG CACHE_BUST=N  # Bump to N+1
 ```
 
 Then run: `cloudron build --no-cache`
+
+The current value lives in `Dockerfile` at the top (line ~4). Always read it before bumping rather than assuming a specific number.
 
 ### 7. Eleventy Collection Paths
 
