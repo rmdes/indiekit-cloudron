@@ -1,179 +1,282 @@
-# Indiekit Cloudron Makefile
+# Indiekit Cloudron — multi-site Makefile
+#
+# Layout convention:
+#
+#   indiekit-cloudron/
+#   ├── *.template                  (committed, generic defaults)
+#   ├── eleventy-site/              (git submodule — public theme)
+#   ├── overrides/eleventy-site/    (legacy: optional rmendes-style override)
+#   └── sites/                      (GITIGNORED, one directory per site)
+#       ├── rmendes/
+#       │   ├── config/
+#       │   │   ├── nginx.conf
+#       │   │   ├── indiekit.config.js
+#       │   │   ├── redirects.map
+#       │   │   ├── old-blog-redirects.map
+#       │   │   └── env.sh
+#       │   └── overrides/eleventy-site/   (applied on top of submodule)
+#       └── chardonsbleus/
+#           ├── config/
+#           │   ├── nginx.conf
+#           │   ├── indiekit.config.js
+#           │   ├── redirects.map
+#           │   ├── old-blog-redirects.map
+#           │   └── env.sh
+#           └── theme/                     (full theme replacement; may be a symlink)
+#
 # Usage:
-#   make init      - Initialize submodules (first time setup)
-#   make build     - Apply overrides and build Docker image
-#   make deploy    - Build and deploy to Cloudron
-#   make clean     - Restore base templates
-#   make prepare   - Apply personal overrides without building
+#   make build SITE=chardonsbleus           build for chardonsbleus
+#   make deploy SITE=rmendes APP=rmendes.net deploy rmendes to its Cloudron app
+#   make use SITE=chardonsbleus             remember the default site for `make` without SITE=
+#   make prepare                             apply overrides for the default site (no build)
+#
+# Default site is read from .current-site (gitignored) if SITE is not provided.
 
-APP ?= rmendes.net
-THEME_REPO = https://github.com/rmdes/indiekit-eleventy-theme.git
+# ─── Configuration ───
 
-# Initialize git submodules (run once after cloning)
+# Determine the active site: explicit SITE > .current-site > none
+SITE ?= $(shell cat .current-site 2>/dev/null)
+APP  ?=
+
+# Path to the active site's overlay
+SITE_DIR   := sites/$(SITE)
+CONFIG_DIR := $(SITE_DIR)/config
+
+# The 5 config files we materialize at the repo root before docker build.
+CONFIG_FILES := nginx.conf indiekit.config.js redirects.map old-blog-redirects.map env.sh
+
+# Docker Hub release tagging
+CLOUDRON_IMAGE   := rmdes/indiekit-cloudron
+UPSTREAM_VERSION := $(shell node -p "require('./CloudronManifest.json').upstreamVersion" 2>/dev/null)
+
+# Per-site image tag: <site>-<version>  (e.g. rmendes-1.0.0-beta.42)
+# This prevents building chardonsbleus from overwriting rmendes's image in the registry.
+IMAGE_TAG  := $(SITE)-$(UPSTREAM_VERSION)
+FULL_IMAGE := $(CLOUDRON_IMAGE):$(IMAGE_TAG)
+
+# Guard that errors out when an action requires a SITE but none is set.
+define require_site
+	@if [ -z "$(SITE)" ]; then \
+		echo "ERROR: no SITE specified."; \
+		echo "  Usage:  make $@ SITE=<sitename>"; \
+		echo "  Or:     make use SITE=<sitename>  (remember as default)"; \
+		echo "  Sites available:"; \
+		ls -1 sites/ 2>/dev/null | sed 's/^/    - /' || echo "    (none — create sites/<name>/ to begin)"; \
+		exit 1; \
+	fi
+	@if [ ! -d "$(SITE_DIR)" ]; then \
+		echo "ERROR: sites/$(SITE)/ does not exist."; \
+		exit 1; \
+	fi
+endef
+
+# ─── Setup ───
+
 .PHONY: init
-init:
+init: ## Initialize git submodules (first time only)
 	@echo "==> Initializing submodules..."
 	git submodule update --init --recursive
-	@echo "==> Done. Run 'make prepare' to apply personal overrides."
+	@echo "==> Done."
 
-# Update theme submodule to latest version
 .PHONY: theme-update
-theme-update:
-	@echo "==> Updating theme submodule to latest..."
+theme-update: ## Pull latest from the public eleventy-site submodule
+	@echo "==> Updating theme submodule..."
 	cd eleventy-site && git fetch origin && git checkout main && git pull origin main
-	@echo "==> Theme updated. Don't forget to commit the submodule change:"
+	@echo "==> Theme updated. Commit the submodule pointer change if you want to ship it:"
 	@echo "    git add eleventy-site && git commit -m 'chore: update theme'"
 
-# Apply personal overrides (from .rmendes files and overrides/ directory)
-# Falls back to .template files if no .rmendes override exists
+# Set the default site for subsequent commands. Stored in .current-site (gitignored).
+.PHONY: use
+use:
+	$(require_site)
+	@echo "$(SITE)" > .current-site
+	@echo "==> Default SITE set to: $(SITE)"
+
+.PHONY: which
+which:
+	@if [ -z "$(SITE)" ]; then \
+		echo "No site selected. Set with: make use SITE=<sitename>"; \
+	else \
+		echo "Active SITE: $(SITE)"; \
+		echo "Overlay:     $(SITE_DIR)"; \
+	fi
+
+.PHONY: which-image
+which-image: ## Print the full image tag that 'make build' would produce
+	$(require_site)
+	@echo "$(FULL_IMAGE)"
+
+# ─── Prepare ───
+
 .PHONY: prepare
-prepare:
-	@echo "==> Applying configuration..."
-	@# nginx.conf
-	@if [ -f nginx.conf.rmendes ]; then \
-		echo "    nginx.conf.rmendes -> nginx.conf"; \
-		cp nginx.conf.rmendes nginx.conf; \
-	elif [ -f nginx.conf.template ]; then \
-		echo "    nginx.conf.template -> nginx.conf"; \
-		cp nginx.conf.template nginx.conf; \
+prepare: ## Materialize per-site config + theme into the repo root
+	$(require_site)
+	@echo "==> Preparing build for SITE=$(SITE)"
+	@echo "    overlay: $(SITE_DIR)"
+	@# Copy the 5 config files from the site overlay; fall back to *.template
+	@for f in $(CONFIG_FILES); do \
+		if [ -f "$(CONFIG_DIR)/$$f" ]; then \
+			echo "    $(CONFIG_DIR)/$$f -> $$f"; \
+			cp "$(CONFIG_DIR)/$$f" "$$f"; \
+		elif [ -f "$$f.template" ]; then \
+			echo "    $$f.template -> $$f"; \
+			cp "$$f.template" "$$f"; \
+		fi; \
+	done
+	@# Eleventy theme — two modes:
+	@#
+	@# 1. Full replacement: sites/$(SITE)/theme/ exists (chardonsbleus pattern).
+	@#    Copy its contents OVER ./eleventy-site/, dereferencing symlinks so the
+	@#    Docker build context can COPY real files.
+	@#
+	@# 2. Override-only: sites/$(SITE)/overrides/eleventy-site/ exists (rmendes pattern).
+	@#    Keep the submodule as-is and lay overrides on top.
+	@if [ -d "$(SITE_DIR)/theme" ]; then \
+		echo "    $(SITE_DIR)/theme/* -> eleventy-site/ (full theme replacement)"; \
+		rm -rf eleventy-site/_site eleventy-site/.cache 2>/dev/null || true; \
+		mkdir -p eleventy-site; \
+		rsync -aL --delete --delete-excluded \
+		    --exclude '.git' \
+		    --exclude '_site' \
+		    --exclude '.cache' \
+		    --exclude 'node_modules' \
+		    --exclude 'cloudron-overlay' \
+		    --exclude 'exports' \
+		    --exclude 'private' \
+		    --exclude 'raw' \
+		    --exclude 'screenshots' \
+		    --exclude 'scripts' \
+		    --exclude 'docs' \
+		    --exclude '.backups' \
+		    --exclude '.ruff_cache' \
+		    --exclude '__pycache__' \
+		    --exclude '.claude' \
+		    --exclude 'manifest.json' \
+		    --exclude 'seo.json' \
+		    --exclude 'urls.txt' \
+		    --exclude 'redirects.tsv' \
+		    --exclude 'skills-lock.json' \
+		    --exclude '.gitignore' \
+		    --exclude '.eleventyignore' \
+		    "$(SITE_DIR)/theme/" eleventy-site/; \
+	elif [ -d "$(SITE_DIR)/overrides/eleventy-site" ]; then \
+		echo "    $(SITE_DIR)/overrides/eleventy-site/* -> eleventy-site/ (overlay on submodule)"; \
+		cp -r "$(SITE_DIR)/overrides/eleventy-site/." eleventy-site/; \
+	else \
+		echo "    (no theme/overrides for $(SITE) — using submodule as-is)"; \
 	fi
-	@# redirects.map
-	@if [ -f redirects.map.rmendes ]; then \
-		echo "    redirects.map.rmendes -> redirects.map"; \
-		cp redirects.map.rmendes redirects.map; \
-	elif [ -f redirects.map.template ]; then \
-		echo "    redirects.map.template -> redirects.map"; \
-		cp redirects.map.template redirects.map; \
-	fi
-	@# old-blog-redirects.map
-	@if [ -f old-blog-redirects.map.rmendes ]; then \
-		echo "    old-blog-redirects.map.rmendes -> old-blog-redirects.map"; \
-		cp old-blog-redirects.map.rmendes old-blog-redirects.map; \
-	elif [ -f old-blog-redirects.map.template ]; then \
-		echo "    old-blog-redirects.map.template -> old-blog-redirects.map"; \
-		cp old-blog-redirects.map.template old-blog-redirects.map; \
-	fi
-	@# indiekit.config.js
-	@if [ -f indiekit.config.js.rmendes ]; then \
-		echo "    indiekit.config.js.rmendes -> indiekit.config.js"; \
-		cp indiekit.config.js.rmendes indiekit.config.js; \
-	elif [ -f indiekit.config.js.template ]; then \
-		echo "    indiekit.config.js.template -> indiekit.config.js"; \
-		cp indiekit.config.js.template indiekit.config.js; \
-	fi
-	@# Copy overrides/ directory contents over submodule
-	@if [ -d overrides/eleventy-site ]; then \
-		echo "    Applying overrides/eleventy-site/* -> eleventy-site/"; \
-		cp -r overrides/eleventy-site/* eleventy-site/; \
+	@# migrated-content — seeded once into /app/data/content by start.sh.
+	@# Per-site swap (resolution order):
+	@#   1. sites/$(SITE)/migrated-content/  → use as-is (explicit)
+	@#   2. theme mode + theme/content/      → derive from theme content (chardonsbleus pattern)
+	@#   3. neither                          → keep tree-default migrated-content/ (rmendes pattern)
+	@if [ -d "$(SITE_DIR)/migrated-content" ]; then \
+		echo "    $(SITE_DIR)/migrated-content/* -> migrated-content/ (explicit per-site)"; \
+		rm -rf migrated-content; \
+		mkdir -p migrated-content; \
+		rsync -aL "$(SITE_DIR)/migrated-content/" migrated-content/; \
+	elif [ -d "$(SITE_DIR)/theme/content" ]; then \
+		echo "    $(SITE_DIR)/theme/content/* -> migrated-content/ (derived from theme)"; \
+		rm -rf migrated-content; \
+		mkdir -p migrated-content; \
+		rsync -aL "$(SITE_DIR)/theme/content/" migrated-content/; \
+	else \
+		echo "    (no per-site migrated-content for $(SITE) — keeping repo default)"; \
 	fi
 	@echo "==> Done"
 
-# Build Docker image
+# ─── Build & Deploy ───
+
 .PHONY: build
-build: init prepare
-	@echo "==> Building Cloudron app..."
-	cloudron build --no-cache
+build: prepare ## Apply overrides and build via `cloudron build --no-cache`
+	$(require_site)
+	@echo "==> Building Cloudron app for SITE=$(SITE) → $(FULL_IMAGE)"
+	cloudron build --no-cache --tag $(IMAGE_TAG)
 
-# Build without cache reset
 .PHONY: build-cached
-build-cached: init prepare
-	@echo "==> Building Cloudron app (cached)..."
-	cloudron build
+build-cached: prepare ## Build with cache
+	$(require_site)
+	@echo "==> Building Cloudron app for SITE=$(SITE) (cached) → $(FULL_IMAGE)"
+	cloudron build --tag $(IMAGE_TAG)
 
-# Deploy to Cloudron
 .PHONY: deploy
-deploy: build
-	@echo "==> Deploying to $(APP)..."
-	cloudron update --app $(APP)
+deploy: build ## Build and deploy to the Cloudron app named in APP=
+	$(require_site)
+	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required for deploy"; exit 1; fi
+	@echo "==> Deploying $(SITE) ($(FULL_IMAGE)) to Cloudron app $(APP)..."
+	cloudron update --app $(APP) --image $(FULL_IMAGE)
 
-# Deploy without rebuild (use existing image)
 .PHONY: update
-update:
-	@echo "==> Deploying to $(APP)..."
-	cloudron update --app $(APP)
+update: ## Deploy without rebuild (requires SITE= and APP=)
+	$(require_site)
+	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required for update"; exit 1; fi
+	@echo "==> Updating $(APP) with image $(FULL_IMAGE)..."
+	cloudron update --app $(APP) --image $(FULL_IMAGE)
 
-# Restore base templates (undo personal overrides in working directory)
-.PHONY: clean
-clean:
-	@echo "==> Restoring base templates..."
-	@if [ -f nginx.conf.template ]; then \
-		cp nginx.conf.template nginx.conf; \
-		echo "    nginx.conf restored from template"; \
-	fi
-	@if [ -f redirects.map.template ]; then \
-		cp redirects.map.template redirects.map; \
-		echo "    redirects.map restored from template"; \
-	fi
-	@if [ -f old-blog-redirects.map.template ]; then \
-		cp old-blog-redirects.map.template old-blog-redirects.map; \
-		echo "    old-blog-redirects.map restored from template"; \
-	fi
-	@if [ -f indiekit.config.js.template ]; then \
-		cp indiekit.config.js.template indiekit.config.js; \
-		echo "    indiekit.config.js restored from template"; \
-	fi
-	@# Reset submodule to clean state
-	@echo "==> Resetting theme submodule..."
-	cd eleventy-site && git checkout . && git clean -fd
-	@echo "==> Done. Run 'make prepare' to re-apply personal overrides."
-
-# View logs
-.PHONY: logs
-logs:
-	cloudron logs -f --app $(APP)
-
-# SSH into container
-.PHONY: shell
-shell:
-	cloudron exec --app $(APP)
-
-# Push env.sh to container
 .PHONY: push-env
-push-env:
-	@if [ -f env.sh.rmendes ]; then \
-		echo "==> Pushing env.sh.rmendes to container..."; \
-		cloudron push --app $(APP) env.sh.rmendes /app/data/config/env.sh; \
+push-env: ## Push the active site's env.sh into the running container
+	$(require_site)
+	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required"; exit 1; fi
+	@if [ -f "$(CONFIG_DIR)/env.sh" ]; then \
+		echo "==> Pushing $(CONFIG_DIR)/env.sh to $(APP)..."; \
+		cloudron push --app $(APP) "$(CONFIG_DIR)/env.sh" /app/data/config/env.sh; \
 		echo "==> Done. Restart with: cloudron restart --app $(APP)"; \
 	else \
-		echo "Error: env.sh.rmendes not found"; \
-		exit 1; \
+		echo "ERROR: $(CONFIG_DIR)/env.sh not found"; exit 1; \
 	fi
 
-# Restart container
 .PHONY: restart
 restart:
+	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required"; exit 1; fi
 	cloudron restart --app $(APP)
+
+.PHONY: logs
+logs:
+	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required"; exit 1; fi
+	cloudron logs -f --app $(APP)
+
+.PHONY: shell
+shell:
+	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required"; exit 1; fi
+	cloudron exec --app $(APP)
+
+# ─── Clean ───
+
+.PHONY: clean
+clean: ## Restore base templates (undo prepare in working dir)
+	@echo "==> Restoring base templates..."
+	@for f in $(CONFIG_FILES); do \
+		if [ -f "$$f.template" ]; then \
+			cp "$$f.template" "$$f"; echo "    $$f restored from template"; \
+		fi; \
+	done
+	@echo "==> Resetting theme submodule..."
+	@if [ -d eleventy-site/.git ] || [ -f eleventy-site/.git ]; then \
+		cd eleventy-site && git checkout . && git clean -fd; \
+	fi
+	@echo "==> Done."
 
 # ─── Docker Hub ───
 
-# Docker Hub image name
-CLOUDRON_IMAGE := rmdes/indiekit-cloudron
-UPSTREAM_VERSION := $(shell node -p "require('./CloudronManifest.json').upstreamVersion")
-
-# Build Docker image for Docker Hub (NOT cloudron build)
 .PHONY: docker-build
-docker-build: init prepare
+docker-build: prepare ## Build image for Docker Hub
 	docker build --no-cache -t $(CLOUDRON_IMAGE):latest -t $(CLOUDRON_IMAGE):$(UPSTREAM_VERSION) .
 
-# Push to Docker Hub
 .PHONY: docker-push
 docker-push:
 	docker push $(CLOUDRON_IMAGE):latest
 	docker push $(CLOUDRON_IMAGE):$(UPSTREAM_VERSION)
 
-# Full release to Docker Hub
 .PHONY: docker-release
 docker-release: docker-build docker-push
 	@echo "==> Released $(UPSTREAM_VERSION) to Docker Hub"
 
-# Show upstream version
 .PHONY: docker-version
 docker-version:
 	@echo $(UPSTREAM_VERSION)
 
 # ─── CI/CD ───
 
-# Trigger GitHub Actions build from local machine
 .PHONY: ci
 ci:
 	gh workflow run build-image.yml
@@ -182,45 +285,45 @@ ci:
 ci-status:
 	gh run list --workflow=build-image.yml --limit=5
 
-# Show help
+# ─── Help ───
+
 .PHONY: help
 help:
-	@echo "Indiekit Cloudron Makefile"
+	@echo "Indiekit Cloudron — multi-site Makefile"
+	@echo ""
+	@echo "Active SITE: $${SITE:-$$(cat .current-site 2>/dev/null || echo '(none)')}"
 	@echo ""
 	@echo "Setup:"
-	@echo "  make init         Initialize git submodules (first time)"
-	@echo "  make theme-update Update theme submodule to latest"
+	@echo "  make init                       Initialize git submodules"
+	@echo "  make theme-update               Pull latest submodule theme"
+	@echo "  make use SITE=<name>            Set default site"
+	@echo "  make which                      Show active site + overlay path"
+	@echo "  make which-image SITE=<name>    Show image tag that 'make build' would produce"
 	@echo ""
-	@echo "Build & Deploy (Cloudron):"
-	@echo "  make build        Apply overrides and build Docker image (no cache)"
-	@echo "  make build-cached Apply overrides and build (with cache)"
-	@echo "  make deploy       Build and deploy to Cloudron (APP=$(APP))"
-	@echo "  make update       Deploy without rebuild"
-	@echo ""
-	@echo "Docker Hub (manual):"
-	@echo "  make docker-build   Build image for Docker Hub"
-	@echo "  make docker-push    Push image to Docker Hub"
-	@echo "  make docker-release Build + push to Docker Hub"
-	@echo "  make docker-version Show upstream version"
-	@echo ""
-	@echo "CI/CD (GitHub Actions):"
-	@echo "  make ci             Trigger image build workflow"
-	@echo "  make ci-status      Show recent workflow runs"
+	@echo "Build & Deploy:"
+	@echo "  make build SITE=<name>          Build for a specific site"
+	@echo "  make build-cached SITE=<name>   Build with cache"
+	@echo "  make deploy SITE=<name> APP=<app.example.com>"
+	@echo "  make update APP=<app.example.com>"
+	@echo "  make push-env SITE=<name> APP=<app.example.com>"
 	@echo ""
 	@echo "Maintenance:"
-	@echo "  make prepare      Apply personal overrides without building"
-	@echo "  make clean        Restore base templates (reset overrides)"
-	@echo "  make push-env     Push env.sh.rmendes to container"
-	@echo "  make restart      Restart the Cloudron app"
-	@echo "  make logs         View Cloudron logs"
-	@echo "  make shell        SSH into Cloudron container"
+	@echo "  make prepare SITE=<name>        Materialize config/theme without building"
+	@echo "  make clean                      Reset to templates"
+	@echo "  make restart APP=<app.example.com>"
+	@echo "  make logs APP=<app.example.com>"
+	@echo "  make shell APP=<app.example.com>"
 	@echo ""
-	@echo "Structure:"
-	@echo "  eleventy-site/                 Theme (git submodule)"
-	@echo "  overrides/eleventy-site/       Personal theme overrides"
-	@echo "  *.rmendes                      Personal config overrides"
+	@echo "Docker Hub:"
+	@echo "  make docker-build SITE=<name>   Build image"
+	@echo "  make docker-push                Push to Hub"
+	@echo "  make docker-release SITE=<name> Build + push"
 	@echo ""
-	@echo "Set APP variable to change target:"
-	@echo "  make deploy APP=mysite.example.com"
+	@echo "Adding a new site:"
+	@echo "  mkdir -p sites/<name>/config"
+	@echo "  # populate the 5 config files (or copy from *.template)"
+	@echo "  # optional: sites/<name>/theme  (full theme replacement)"
+	@echo "  # optional: sites/<name>/overrides/eleventy-site/  (overlay submodule)"
+	@echo "  make use SITE=<name>            (optional default)"
 
 .DEFAULT_GOAL := help
