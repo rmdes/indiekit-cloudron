@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=318
+ARG CACHE_BUST=319
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -38,6 +38,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-micropub@1.0.0-beta.31 \
         @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-share@1.0.4 \
+        @rmdes/indiekit-endpoint-site-config@1.0.0-alpha.1 \
         @indiekit/endpoint-json-feed \
         @rmdes/indiekit-endpoint-webmention-io@1.0.8 \
         @indiekit/post-type-article \
@@ -71,7 +72,8 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-comments@1.0.16 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
         @rmdes/indiekit-startup-gate@1.0.0 \
-        @rmdes/indiekit-endpoint-activitypub@3.13.6
+        @rmdes/indiekit-endpoint-activitypub@3.13.6 \
+        @rmdes/indiekit-endpoint-donation@0.1.0-alpha.2
 # TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
 #       @rmdes/indiekit-endpoint-bluesky-pds@0.1.0
 # Until then, install locally via: npm install /path/to/indiekit-endpoint-bluesky-pds
@@ -85,8 +87,13 @@ RUN chown -R cloudron:cloudron /app/pkg/eleventy-site
 WORKDIR /app/pkg/eleventy-site
 RUN gosu cloudron:cloudron npm install
 
-# Build Tailwind CSS
-RUN gosu cloudron:cloudron ./node_modules/.bin/tailwindcss -i css/tailwind.css -o css/style.css --minify
+# Build Tailwind CSS — only if the active theme uses Tailwind (rmendes does;
+# chardonsbleus uses vanilla CSS at public/css/). Skip gracefully otherwise.
+RUN if [ -f css/tailwind.css ] && [ -x ./node_modules/.bin/tailwindcss ]; then \
+        gosu cloudron:cloudron ./node_modules/.bin/tailwindcss -i css/tailwind.css -o css/style.css --minify; \
+    else \
+        echo "[build] skipping tailwindcss — theme does not use Tailwind (no css/tailwind.css or no tailwindcss binary)"; \
+    fi
 
 # Create symlinks in Dockerfile (Cloudron pattern: dangling during build, valid at runtime)
 # Like taiga-app: ln -s /app/data/media /app/code/taiga-back/media

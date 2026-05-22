@@ -101,6 +101,8 @@ export default {
     "@rmdes/indiekit-endpoint-comments",
     // Read It Later — private bookmark list, save buttons on reader/frontend pages
     "@rmdes/indiekit-endpoint-readlater",
+    // Site Config — palette, identity, branding, layout settings
+    "@rmdes/indiekit-endpoint-site-config",
     // ActivityPub federation
     "@rmdes/indiekit-endpoint-activitypub",
   ],
