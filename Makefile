@@ -128,63 +128,24 @@ prepare: ## Materialize per-site config + theme into the repo root
 			cp "$$f.template" "$$f"; \
 		fi; \
 	done
-	@# Eleventy theme — two modes:
-	@#
-	@# 1. Full replacement: sites/$(SITE)/theme/ exists (chardonsbleus pattern).
-	@#    Copy its contents OVER ./eleventy-site/, dereferencing symlinks so the
-	@#    Docker build context can COPY real files.
-	@#
-	@# 2. Override-only: sites/$(SITE)/overrides/eleventy-site/ exists (rmendes pattern).
-	@#    Keep the submodule as-is and lay overrides on top.
-	@if [ -d "$(SITE_DIR)/theme" ]; then \
-		echo "    $(SITE_DIR)/theme/* -> eleventy-site/ (full theme replacement)"; \
-		rm -rf eleventy-site/_site eleventy-site/.cache 2>/dev/null || true; \
-		mkdir -p eleventy-site; \
-		rsync -aL --delete --delete-excluded \
-		    --exclude '.git' \
-		    --exclude '_site' \
-		    --exclude '.cache' \
-		    --exclude 'node_modules' \
-		    --exclude 'cloudron-overlay' \
-		    --exclude 'exports' \
-		    --exclude 'private' \
-		    --exclude 'raw' \
-		    --exclude 'screenshots' \
-		    --exclude 'scripts' \
-		    --exclude 'docs' \
-		    --exclude '.backups' \
-		    --exclude '.ruff_cache' \
-		    --exclude '__pycache__' \
-		    --exclude '.claude' \
-		    --exclude 'manifest.json' \
-		    --exclude 'seo.json' \
-		    --exclude 'urls.txt' \
-		    --exclude 'redirects.tsv' \
-		    --exclude 'skills-lock.json' \
-		    --exclude '.gitignore' \
-		    --exclude '.eleventyignore' \
-		    "$(SITE_DIR)/theme/" eleventy-site/; \
-	elif [ -d "$(SITE_DIR)/overrides/eleventy-site" ]; then \
-		echo "    $(SITE_DIR)/overrides/eleventy-site/* -> eleventy-site/ (overlay on submodule)"; \
-		cp -r "$(SITE_DIR)/overrides/eleventy-site/." eleventy-site/; \
-	else \
-		echo "    (no theme/overrides for $(SITE) — using submodule as-is)"; \
-	fi
-	@# migrated-content — seeded once into /app/data/content by start.sh.
-	@# Per-site swap (resolution order):
-	@#   1. sites/$(SITE)/migrated-content/  → use as-is (explicit)
-	@#   2. theme mode + theme/content/      → derive from theme content (chardonsbleus pattern)
-	@#   3. neither                          → keep tree-default migrated-content/ (rmendes pattern)
+	@# Eleventy theme: single canonical theme (indiekit-eleventy-theme submodule).
+	@# Per-site variance lives in MongoDB siteConfig (via the site-config plugin's
+	@# runtime CSS generation) — NOT in per-site theme forks. Per v2 design,
+	@# acceptance criterion #1: "One canonical Eleventy theme used by every
+	@# deployment. No per-site theme forks."
+	@echo "    (using submodule as-is — per-site theme variants are not supported; use siteConfig MongoDB instead)"
+	@# migrated-content — seeded once into /app/data/content by start.sh on first
+	@# container boot. Per-site:
+	@#   1. sites/$(SITE)/migrated-content/  → use as-is (explicit per-site)
+	@#   2. neither                          → keep tree-default migrated-content/
+	@#                                         (which is empty/placeholder only per
+	@#                                         the 8a8690d cleanup that moved
+	@#                                         chardonsbleus content out)
 	@if [ -d "$(SITE_DIR)/migrated-content" ]; then \
 		echo "    $(SITE_DIR)/migrated-content/* -> migrated-content/ (explicit per-site)"; \
 		rm -rf migrated-content; \
 		mkdir -p migrated-content; \
 		rsync -aL "$(SITE_DIR)/migrated-content/" migrated-content/; \
-	elif [ -d "$(SITE_DIR)/theme/content" ]; then \
-		echo "    $(SITE_DIR)/theme/content/* -> migrated-content/ (derived from theme)"; \
-		rm -rf migrated-content; \
-		mkdir -p migrated-content; \
-		rsync -aL "$(SITE_DIR)/theme/content/" migrated-content/; \
 	else \
 		echo "    (no per-site migrated-content for $(SITE) — keeping repo default)"; \
 	fi
