@@ -11,25 +11,32 @@ env.sh.*
 # Build artifacts (eleventy-site is a submodule)
 # _site and .cache are in submodule's .gitignore
 
-# User content (populated at runtime)
-migrated-content/
+# Per-site overlays (one directory per deployment).
+# Each contains config/, optional theme/, optional overrides/.
+# See README "Multi-site deployment" for the convention.
+sites/
 
-# Personal data overrides (applied during build)
+# The active-site marker (per machine, not committed).
+.current-site
+
+# Legacy convention (pre-multi-site refactor) — *.<name> dot-suffixed
+# overrides. Kept here so existing local checkouts don't accidentally
+# commit personal data after pulling the refactored Makefile.
 *.rmendes
 overrides/
 
-# Personal config overrides
-# .template files stay in repo, .rmendes files override during build
-# Generated files (without .template suffix) are gitignored
+# Generated config (materialized by `make prepare`)
 nginx.conf
 redirects.map
 old-blog-redirects.map
 indiekit.config.js
 
+# User content (populated at runtime)
+/migrated-content/*
+!/migrated-content/.gitkeep
+
 # Migration scripts (user-specific)
 scripts/
-
-# Personal avatar images can go in overrides/eleventy-site/images/
 
 # Logs
 *.log
