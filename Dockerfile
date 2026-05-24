@@ -72,8 +72,11 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-comments@1.0.16 \
         @rmdes/indiekit-endpoint-readlater@1.0.6 \
         @rmdes/indiekit-startup-gate@1.0.0 \
-        @rmdes/indiekit-endpoint-activitypub@3.13.6 \
-        @rmdes/indiekit-endpoint-donation@0.1.0-alpha.2
+        @rmdes/indiekit-endpoint-activitypub@3.13.6
+# NOTE: @rmdes/indiekit-endpoint-donation is chardonsbleus-specific and not
+# part of the shared rmendes build. Until per-site plugin loadout is
+# implemented (the un-built "Plan B" from the May 2026 brainstorm), site-
+# specific plugins should NOT be added to this shared Dockerfile.
 # TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
 #       @rmdes/indiekit-endpoint-bluesky-pds@0.1.0
 # Until then, install locally via: npm install /path/to/indiekit-endpoint-bluesky-pds
