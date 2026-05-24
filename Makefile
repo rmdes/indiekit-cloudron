@@ -49,9 +49,14 @@ CONFIG_FILES := nginx.conf indiekit.config.js redirects.map old-blog-redirects.m
 CLOUDRON_IMAGE   := rmdes/indiekit-cloudron
 UPSTREAM_VERSION := $(shell node -p "require('./CloudronManifest.json').upstreamVersion" 2>/dev/null)
 
-# Per-site image tag: <site>-<version>  (e.g. rmendes-1.0.0-beta.42)
+# Build counter for cache-busting (incremented per package release).
+# Stays decoupled from UPSTREAM_VERSION so the manifest's upstreamVersion can
+# track the actual upstream @indiekit/indiekit release without artificial bumps.
+BUILD_NUMBER := $(shell cat .cloudron-build 2>/dev/null || echo 0)
+
+# Per-site image tag: <site>-<upstream>-build<n>  (e.g. rmendes-1.0.0-beta.27-build30)
 # This prevents building chardonsbleus from overwriting rmendes's image in the registry.
-IMAGE_TAG  := $(SITE)-$(UPSTREAM_VERSION)
+IMAGE_TAG  := $(SITE)-$(UPSTREAM_VERSION)-build$(BUILD_NUMBER)
 FULL_IMAGE := $(CLOUDRON_IMAGE):$(IMAGE_TAG)
 
 # Guard that errors out when an action requires a SITE but none is set.

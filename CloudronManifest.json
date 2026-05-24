@@ -5,7 +5,7 @@
   "description": "The little Node.js server with all the pieces needed to share your content with the open, independent web.",
   "tagline": "IndieWeb publishing server",
   "version": "1.0.0",
-  "upstreamVersion": "1.0.0-beta.29",
+  "upstreamVersion": "1.0.0-beta.27",
   "healthCheckPath": "/",
   "httpPort": 3000,
   "addons": {
