@@ -1,7 +1,7 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=322
+ARG CACHE_BUST=323
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -86,6 +86,18 @@ RUN chown -R cloudron:cloudron /app/pkg/eleventy-site
 # Install Eleventy site dependencies
 WORKDIR /app/pkg/eleventy-site
 RUN gosu cloudron:cloudron npm install
+
+# Run theme prebuild: seeds css/theme.css from css/theme.example.css and
+# _data/site-config.json from _data/site.example.json if they don't exist.
+# Without this, Eleventy's addPassthroughCopy("css") has no theme.css to copy,
+# /css/theme.css 404s, all rgb(var(--c-X)) CSS classes resolve invalid, and
+# cards/dark-mode visually regress. See v2 plan Bug #2 verified diagnosis.
+# Safe to call: prebuild script is idempotent (only copies if file missing).
+RUN if [ -f package.json ] && grep -q '"prebuild"' package.json; then \
+        gosu cloudron:cloudron npm run prebuild; \
+    else \
+        echo "[build] no prebuild script in package.json — skipping"; \
+    fi
 
 # Build Tailwind CSS — only if the active theme uses Tailwind (rmendes does;
 # chardonsbleus uses vanilla CSS at public/css/). Skip gracefully otherwise.
