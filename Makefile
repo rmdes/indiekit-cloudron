@@ -209,14 +209,14 @@ deploy: build ## Build and deploy to the Cloudron app named in APP=
 	$(require_site)
 	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required for deploy"; exit 1; fi
 	@echo "==> Deploying $(SITE) ($(FULL_IMAGE)) to Cloudron app $(APP)..."
-	cloudron update --app $(APP) --image $(FULL_IMAGE)
+	cloudron update --app $(APP) --image $(FULL_IMAGE) --no-backup
 
 .PHONY: update
 update: ## Deploy without rebuild (requires SITE= and APP=)
 	$(require_site)
 	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required for update"; exit 1; fi
 	@echo "==> Updating $(APP) with image $(FULL_IMAGE)..."
-	cloudron update --app $(APP) --image $(FULL_IMAGE)
+	cloudron update --app $(APP) --image $(FULL_IMAGE) --no-backup
 
 .PHONY: push-env
 push-env: ## Push the active site's env.sh into the running container
