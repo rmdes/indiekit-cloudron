@@ -93,14 +93,90 @@ If you want to customize the image before deploying:
    ```bash
    git clone https://github.com/rmdes/indiekit-cloudron.git
    cd indiekit-cloudron
+   make init
    ```
 
-2. Build and install:
+2. Create your site overlay (see [Multi-site deployment](#multi-site-deployment) below):
    ```bash
-   make deploy APP=yourdomain.com
-   # Or without Makefile:
-   # cloudron build && cloudron install --app yourdomain.com
+   mkdir -p sites/mysite/config
+   cp nginx.conf.template            sites/mysite/config/nginx.conf
+   cp indiekit.config.js.template    sites/mysite/config/indiekit.config.js
+   cp redirects.map.template         sites/mysite/config/redirects.map
+   cp old-blog-redirects.map.template sites/mysite/config/old-blog-redirects.map
+   # write your env vars
+   touch sites/mysite/config/env.sh
+   make use SITE=mysite
    ```
+
+3. Build and install:
+   ```bash
+   make deploy SITE=mysite APP=mysite.example.com
+   ```
+
+### Multi-site deployment
+
+This repo is **site-agnostic by design**. The committed files are all
+generic (`*.template` config, a `Makefile`, a `Dockerfile`, a public
+theme submodule). Per-deployment overrides live in `sites/<name>/` and
+are gitignored — so the same clone can build multiple sites without
+leaking deployment-specific data into the public repo.
+
+```
+indiekit-cloudron/
+├── *.template                         # committed: generic defaults
+├── eleventy-site/                     # submodule: public theme
+├── Makefile, Dockerfile, CloudronManifest.json, …
+└── sites/                             # gitignored, one dir per site
+    ├── mysite/
+    │   ├── config/
+    │   │   ├── nginx.conf
+    │   │   ├── indiekit.config.js
+    │   │   ├── redirects.map
+    │   │   ├── old-blog-redirects.map
+    │   │   └── env.sh
+    │   └── overrides/eleventy-site/    # optional: tweak the public theme
+    └── theirsite/
+        ├── config/…
+        └── theme/                      # optional: full theme replacement
+                                        # (may be a symlink to another repo)
+```
+
+**Choosing config-only vs theme-replacement:**
+
+- **Override the submodule** (most users): keep the public theme, add
+  your own tweaks under `sites/<name>/overrides/eleventy-site/`.
+- **Replace the theme entirely** (custom branded sites): drop a
+  full Eleventy project at `sites/<name>/theme/`. Often a symlink to a
+  sibling repo where you actually edit the theme:
+  ```bash
+  ln -s ~/code/mysite/cloudron-overlay/theme sites/mysite/theme
+  ```
+  `make prepare` `rsync -aL`'s the symlink target into `eleventy-site/`
+  so the Docker build sees real files.
+
+**Switching sites:**
+
+```bash
+make use SITE=mysite        # remember as default (writes .current-site)
+make which                  # show active site
+make build                  # uses the default
+make build SITE=othersite   # one-off override
+```
+
+**Migrating from the legacy `*.rmendes` pattern:**
+
+```bash
+# One-time move (per existing site that used the old convention)
+mkdir -p sites/rmendes/config
+mv nginx.conf.rmendes               sites/rmendes/config/nginx.conf
+mv indiekit.config.js.rmendes       sites/rmendes/config/indiekit.config.js
+mv redirects.map.rmendes            sites/rmendes/config/redirects.map
+mv old-blog-redirects.map.rmendes   sites/rmendes/config/old-blog-redirects.map
+mv env.sh.rmendes                   sites/rmendes/config/env.sh
+[ -d overrides/eleventy-site ] && mkdir -p sites/rmendes/overrides && \
+    mv overrides/eleventy-site sites/rmendes/overrides/
+make use SITE=rmendes
+```
 
 ### First-Run Configuration
 

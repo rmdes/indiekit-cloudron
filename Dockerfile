@@ -38,7 +38,7 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-micropub@1.0.0-beta.31 \
         @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-share@1.0.4 \
-        @rmdes/indiekit-endpoint-site-config@1.0.0-alpha.7 \
+        @rmdes/indiekit-endpoint-site-config@1.0.0-beta.1 \
         @indiekit/endpoint-json-feed \
         @rmdes/indiekit-endpoint-webmention-io@1.0.8 \
         @indiekit/post-type-article \
@@ -64,7 +64,6 @@ RUN chown -R cloudron:cloudron /app/code && \
         @rmdes/indiekit-endpoint-podroll@1.0.14 \
         @rmdes/indiekit-endpoint-webmention-sender@1.0.9 \
         @rmdes/indiekit-endpoint-blogroll@1.0.24 \
-        @rmdes/indiekit-endpoint-homepage@1.0.24 \
         @rmdes/indiekit-endpoint-cv@1.0.26 \
         @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
         @rmdes/indiekit-endpoint-files@1.0.3 \

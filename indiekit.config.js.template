@@ -95,7 +95,6 @@ export default {
     "@rmdes/indiekit-endpoint-podroll",
     "@rmdes/indiekit-endpoint-webmention-sender",
     "@rmdes/indiekit-endpoint-blogroll",
-    "@rmdes/indiekit-endpoint-homepage",
     "@rmdes/indiekit-endpoint-cv",
     "@rmdes/indiekit-endpoint-conversations",
     "@rmdes/indiekit-endpoint-comments",
@@ -264,13 +263,6 @@ export default {
     mountPath: "/blogrollapi",
     syncInterval: 900_000, // 15 minutes
     maxItemAge: 7, // Keep items for 7 days to encourage fresh discovery
-  },
-
-  // Homepage builder endpoint (optional)
-  // Admin UI at /homepage for configuring layout, sections, and sidebar widgets
-  "@rmdes/indiekit-endpoint-homepage": {
-    mountPath: "/homepage",
-    contentDir: "/app/data/content",
   },
 
   // CV/Resume editor endpoint (optional)
