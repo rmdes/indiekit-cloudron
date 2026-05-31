@@ -41,12 +41,16 @@ export function composeFromInputs(registry, manifest, basePackageJson, template)
     }
   }
 
-  // Build package.json deps
+  // Build package.json deps.
+  // - Skip 'overridden:true' entries: they're auto-installed as transitive deps
+  //   of @indiekit/indiekit, and the package.json overrides field swaps them to
+  //   @rmdes forks. Adding them as direct deps triggers npm EOVERRIDE conflicts.
+  // - 'library:true' entries are real installable packages (just not listed in
+  //   the indiekit plugins array), so they DO get a dep entry.
   const dependencies = { ...(basePackageJson.dependencies || {}) };
   for (const entry of selected) {
-    if (entry.overridden) {
-      dependencies[entry.package] = "latest";
-    } else if (entry.version) {
+    if (entry.overridden) continue;
+    if (entry.version) {
       dependencies[entry.package] = entry.version;
     } else {
       dependencies[entry.package] = "*";

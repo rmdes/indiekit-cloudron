@@ -30,7 +30,18 @@ test("compose includes all core plugins regardless of manifest", () => {
   const manifest = {};
   const r = composeFromInputs(REGISTRY, manifest, BASE_PACKAGE_JSON, TEMPLATE);
   assert.ok(r.packageJson.dependencies["@rmdes/indiekit-endpoint-site-config"]);
-  assert.ok(r.packageJson.dependencies["@indiekit/endpoint-auth"]);
+  // 'overridden:true' entries are NOT in deps directly — they install as
+  // transitive deps of @indiekit/indiekit; overrides field swaps in the fork.
+  assert.ok(!r.packageJson.dependencies["@indiekit/endpoint-auth"]);
+  assert.ok(r.packageJson.overrides["@indiekit/endpoint-auth"]);
+});
+
+test("compose skips overridden entries from plugins array AND deps", () => {
+  const r = composeFromInputs(REGISTRY, {}, BASE_PACKAGE_JSON, TEMPLATE);
+  // not in plugins array
+  assert.ok(!r.indiekitConfig.includes("@indiekit/endpoint-auth"));
+  // not in deps
+  assert.ok(!r.packageJson.dependencies["@indiekit/endpoint-auth"]);
 });
 
 test("compose respects post_type default_enabled", () => {
