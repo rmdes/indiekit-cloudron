@@ -1,3 +1,6 @@
 [submodule "eleventy-site"]
 	path = eleventy-site
 	url = https://github.com/rmdes/indiekit-eleventy-theme.git
+[submodule "plugin-registry"]
+	path = plugin-registry
+	url = git@github.com:rmdes/indiekit-plugin-registry.git
