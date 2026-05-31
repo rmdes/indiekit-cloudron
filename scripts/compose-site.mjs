@@ -61,8 +61,12 @@ export function composeFromInputs(registry, manifest, basePackageJson, template)
     dependencies,
   };
 
-  // Build indiekit.config.js
+  // Build indiekit.config.js plugins array
+  // Skip 'overridden:true' (indiekit core auto-imports them; the package.json
+  // overrides field swaps them to @rmdes forks at install time) and 'library:true'
+  // (helper libraries like startup-gate, never indiekit plugins).
   const pluginsArrayText = selected
+    .filter((e) => !e.overridden && !e.library)
     .map((e) => `    "${e.package}",`)
     .join("\n");
   const indiekitConfig = template.replace("{{PLUGINS}}", pluginsArrayText);
@@ -90,7 +94,12 @@ export async function composeSite(siteName) {
   const manifest = yaml.load(await readFile(manifestPath, "utf8")) || {};
   manifest._site = siteName;
   const basePackageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
-  const template = await readFile(path.join(ROOT, "indiekit.config.js.template"), "utf8");
+  // Composer reads the SITE'S indiekit.config.js as its template, NOT the generic
+  // template at repo root. This preserves per-site config (MongoDB URL, locale,
+  // publication, plugin-specific config blocks). The per-site file must have a
+  // {{PLUGINS}} placeholder inside its plugins:[] array — if absent, the composer
+  // is a no-op for indiekit.config.js (only package.json gets composed).
+  const template = await readFile(path.join(ROOT, "sites", siteName, "config/indiekit.config.js"), "utf8");
 
   const result = composeFromInputs(registry, manifest, basePackageJson, template);
 

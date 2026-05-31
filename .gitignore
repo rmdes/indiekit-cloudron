@@ -15,13 +15,14 @@ env.sh.*
 # Each contains config/, optional theme/, optional overrides/.
 # See README "Multi-site deployment" for the convention.
 #
-# Wholesale ignore EXCEPT plugins.yaml (Plan B manifests, no secrets).
+# Wholesale ignore EXCEPT Plan B source-of-truth files (no secrets).
 # The negation chain re-includes only the directories needed to reach
-# plugins.yaml — env.sh and other site-specific files stay out.
+# allowed files — env.sh, nginx.conf, redirects.map stay out.
 sites/*
 !sites/*/
 !sites/*/config/
 !sites/*/config/plugins.yaml
+!sites/*/config/indiekit.config.js
 # Generated composer output (runtime artifact, not source)
 sites/*/.compiled/
 
@@ -34,11 +35,13 @@ sites/*/.compiled/
 *.rmendes
 overrides/
 
-# Generated config (materialized by `make prepare`)
-nginx.conf
-redirects.map
-old-blog-redirects.map
-indiekit.config.js
+# Generated config (materialized at repo root by `make prepare`).
+# Leading slash anchors to repo root — these patterns must NOT match
+# the same filenames under sites/<name>/config/ (those are sources).
+/nginx.conf
+/redirects.map
+/old-blog-redirects.map
+/indiekit.config.js
 
 # User content (populated at runtime)
 /migrated-content/*
