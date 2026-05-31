@@ -35,8 +35,12 @@ indiekit.config.js
 /migrated-content/*
 !/migrated-content/.gitkeep
 
-# Migration scripts (user-specific)
-scripts/
+# Legacy user-specific migration scripts (kept out of repo)
+scripts/fix-post-urls.js
+scripts/migrate-blog.py
+scripts/migrate-content-urls.js
+scripts/migrate-twitter-images.sh
+scripts/node_modules/
 
 # Logs
 *.log
