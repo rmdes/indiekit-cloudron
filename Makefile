@@ -154,16 +154,123 @@ prepare: ## Materialize per-site config + theme into the repo root
 # ─── Build & Deploy ───
 
 .PHONY: build
-build: prepare ## Apply overrides and build via `cloudron build --no-cache`
+build: compose prepare ## Apply overrides and build via `cloudron build --no-cache`
 	$(require_site)
 	@echo "==> Building Cloudron app for SITE=$(SITE) → $(FULL_IMAGE)"
-	cloudron build --no-cache --tag $(IMAGE_TAG)
+	cloudron build --no-cache --tag $(IMAGE_TAG) --build-arg SITE=$(SITE)
 
 .PHONY: build-cached
-build-cached: prepare ## Build with cache
+build-cached: compose prepare ## Build with cache
 	$(require_site)
 	@echo "==> Building Cloudron app for SITE=$(SITE) (cached) → $(FULL_IMAGE)"
-	cloudron build --tag $(IMAGE_TAG)
+	cloudron build --tag $(IMAGE_TAG) --build-arg SITE=$(SITE)
+
+# ─── Plugin manifest (Plan B) ───
+
+.PHONY: compose
+compose: ## Compose per-site package.json + indiekit.config.js from plugins.yaml
+	$(require_site)
+	@echo "==> Composing $(SITE)..."
+	@cd scripts && SITE=$(SITE) node compose-site.mjs
+	@echo "==> Composed: sites/$(SITE)/.compiled/"
+
+.PHONY: check-compiled
+check-compiled: ## Assert sites/$(SITE)/.compiled/ exists and is fresh
+	$(require_site)
+	@[ -f "sites/$(SITE)/.compiled/package.json" ] || { echo "ERROR: sites/$(SITE)/.compiled/ missing. Run: make compose SITE=$(SITE)"; exit 1; }
+	@if [ "sites/$(SITE)/config/plugins.yaml" -nt "sites/$(SITE)/.compiled/package.json" ]; then \
+		echo "ERROR: plugins.yaml is newer than .compiled/. Run: make compose SITE=$(SITE)"; exit 1; \
+	fi
+
+.PHONY: manifest-validate
+manifest-validate: ## Validate registry + site manifest parses
+	$(require_site)
+	@cd plugin-registry && node scripts/validate.mjs
+	@node -e "import('js-yaml').then(({default: yaml}) => import('node:fs').then(({readFileSync}) => { const m = yaml.load(readFileSync('sites/$(SITE)/config/plugins.yaml','utf8')); console.log('Site manifest OK:', Object.keys(m).join(', ')); }))"
+
+.PHONY: manifest-from-current
+manifest-from-current: ## Generate plugins.yaml from current Dockerfile (one-time migration helper)
+	$(require_site)
+	SITE=$(SITE) node scripts/manifest-from-current.mjs
+
+# ─── Plugin management ───
+
+.PHONY: plugin-add
+plugin-add: ## Enable a plugin. Usage: make plugin-add SITE=foo KEY=github
+	$(require_site)
+	@[ -n "$(KEY)" ] || { echo "ERROR: KEY=<plugin-key> required"; exit 1; }
+	node scripts/plugin-edit.mjs add $(SITE) $(KEY)
+
+.PHONY: plugin-remove
+plugin-remove: ## Disable a plugin. Usage: make plugin-remove SITE=foo KEY=funkwhale
+	$(require_site)
+	@[ -n "$(KEY)" ] || { echo "ERROR: KEY=<plugin-key> required"; exit 1; }
+	node scripts/plugin-edit.mjs remove $(SITE) $(KEY)
+
+.PHONY: plugin-list
+plugin-list: ## Show effective plugin loadout (reads .compiled/plugin-loadout.json)
+	$(require_site)
+	@[ -f "sites/$(SITE)/.compiled/plugin-loadout.json" ] || { echo "Run: make compose SITE=$(SITE) first"; exit 1; }
+	@node -e "const d=JSON.parse(require('fs').readFileSync('sites/$(SITE)/.compiled/plugin-loadout.json','utf8')); d.selected.forEach(s => console.log('  '+s.tier.padEnd(13)+s.key.padEnd(25)+' ('+s.package+')'));"
+
+.PHONY: plugin-diff
+plugin-diff: ## Diff plugin loadout between two sites. Usage: make plugin-diff SITE_A=rmendes SITE_B=chardonsbleus
+	@[ -n "$(SITE_A)" ] && [ -n "$(SITE_B)" ] || { echo "ERROR: SITE_A and SITE_B required"; exit 1; }
+	@diff <(node -e "const d=require('./sites/$(SITE_A)/.compiled/plugin-loadout.json'); d.selected.forEach(s=>console.log(s.key));" | sort) <(node -e "const d=require('./sites/$(SITE_B)/.compiled/plugin-loadout.json'); d.selected.forEach(s=>console.log(s.key));" | sort) || true
+
+# ─── Site lifecycle ───
+
+.PHONY: new-site
+new-site: ## Scaffold a new site overlay. Usage: make new-site NAME=foo
+	@[ -n "$(NAME)" ] || { echo "ERROR: NAME=<sitename> required"; exit 1; }
+	node scripts/new-site.mjs $(NAME)
+
+.PHONY: site-list
+site-list: ## List all configured sites
+	@ls -1 sites/ 2>/dev/null | sed 's/^/  - /'
+
+.PHONY: site-rename
+site-rename: ## Rename a site. Usage: make site-rename FROM=foo TO=bar
+	@[ -n "$(FROM)" ] && [ -n "$(TO)" ] || { echo "ERROR: FROM= and TO= required"; exit 1; }
+	mv sites/$(FROM) sites/$(TO)
+	@if [ -f .current-site ] && grep -q "^$(FROM)$$" .current-site; then echo "$(TO)" > .current-site; fi
+	@echo "Renamed sites/$(FROM) → sites/$(TO)"
+
+.PHONY: site-delete
+site-delete: ## Delete a site. Usage: make site-delete NAME=foo CONFIRM=1
+	@[ -n "$(NAME)" ] || { echo "ERROR: NAME=<sitename> required"; exit 1; }
+	@[ "$(CONFIRM)" = "1" ] || { echo "ERROR: refuse without CONFIRM=1"; exit 1; }
+	rm -rf sites/$(NAME)
+	@echo "Deleted sites/$(NAME)"
+
+# ─── Registry submodule ───
+
+.PHONY: registry-update
+registry-update: ## Pull latest from plugin-registry submodule
+	cd plugin-registry && git fetch origin && git checkout main && git pull origin main
+	@echo "==> Registry updated. git add plugin-registry to commit the pointer change."
+
+.PHONY: registry-pin
+registry-pin: ## Pin registry to a specific commit. Usage: make registry-pin SHA=abc123
+	@[ -n "$(SHA)" ] || { echo "ERROR: SHA=<commit> required"; exit 1; }
+	cd plugin-registry && git checkout $(SHA)
+
+.PHONY: registry-status
+registry-status: ## Show plugin-registry submodule current commit
+	@cd plugin-registry && git log -1 --format='%h %s (%cr)'
+
+# ─── Site config (MongoDB) ───
+
+.PHONY: config-export
+config-export: ## Dump siteConfig from MongoDB. Usage: make config-export APP=foo > backup.json
+	@[ -n "$(APP)" ] || { echo "ERROR: APP= required"; exit 1; }
+	cloudron exec --app $(APP) -- bash -c 'mongoexport --uri "$$INDIEKIT_MONGO_URL" --collection siteConfig --jsonArray'
+
+.PHONY: config-show
+config-show: ## Show one siteConfig field. Usage: make config-show APP=foo KEY=branding.colors
+	@[ -n "$(APP)" ] || { echo "ERROR: APP= required"; exit 1; }
+	@[ -n "$(KEY)" ] || { echo "ERROR: KEY=<dot.path> required"; exit 1; }
+	cloudron exec --app $(APP) -- bash -c "mongosh \$$INDIEKIT_MONGO_URL --quiet --eval 'JSON.stringify(db.siteConfig.findOne({_id:\"primary\"}).$(KEY))'"
 
 .PHONY: deploy
 deploy: build ## Build and deploy to the Cloudron app named in APP=
