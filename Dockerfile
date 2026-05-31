@@ -1,7 +1,13 @@
 FROM cloudron/base:5.0.0@sha256:04fd70dbd8ad6149c19de39e35718e024417c3e01dc9c6637eaf4a41ec4e596c
 
 # Cache buster - increment to force rebuild
-ARG CACHE_BUST=324
+ARG CACHE_BUST=325
+
+# Per-site build target. Passed via `cloudron build --build-arg SITE=<name>`
+# (or via `make build SITE=<name>`). The composed package.json + indiekit.config.js
+# under sites/${SITE}/.compiled/ are produced by `make compose SITE=<name>`,
+# which reads sites/<name>/config/plugins.yaml + plugin-registry/plugin-registry.yaml.
+ARG SITE
 
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
@@ -17,68 +23,19 @@ RUN apt-get update && \
     apt-get -y install build-essential python3 && \
     rm -rf /var/cache/apt /var/lib/apt/lists
 
-# Copy package.json with npm overrides
-COPY package.json /app/code/
+# Per-site package.json composed by scripts/compose-site.mjs from
+# plugin-registry.yaml + sites/${SITE}/config/plugins.yaml. The composed
+# package.json carries the npm `overrides` field (upstream → @rmdes fork
+# swaps) and the deps array (registry-pinned versions).
+COPY sites/${SITE}/.compiled/package.json /app/code/package.json
 
-# Install Indiekit and plugins
-# Note: @indiekit/endpoint-auth is overridden via package.json
-# Note: @rmdes/indiekit-preset-eleventy replaces @indiekit/preset-eleventy (permalink fix)
-# Note: @rmdes/indiekit-endpoint-micropub replaces @indiekit/endpoint-micropub (typeConfig validation fix)
-ARG INDIEKIT_VERSION=1.0.0-beta.27
+# Install Indiekit and per-site plugin set. No hardcoded list — the
+# plugin selection lives in sites/${SITE}/config/plugins.yaml,
+# materialized to sites/${SITE}/.compiled/ by `make compose SITE=${SITE}`
+# before this Docker build runs.
 RUN chown -R cloudron:cloudron /app/code && \
     gosu cloudron:cloudron npm cache clean --force && \
-    gosu cloudron:cloudron npm install --legacy-peer-deps \
-        @indiekit/indiekit@${INDIEKIT_VERSION} \
-        @indiekit/preset-hugo \
-        @indiekit/store-file-system \
-        @rmdes/indiekit-syndicator-mastodon@1.0.9 \
-        @rmdes/indiekit-syndicator-bluesky@1.0.21 \
-        @rmdes/indiekit-syndicator-linkedin@1.0.2 \
-        @rmdes/indiekit-endpoint-linkedin@1.0.5 \
-        @rmdes/indiekit-endpoint-micropub@1.0.0-beta.31 \
-        @rmdes/indiekit-endpoint-syndicate@1.0.0-beta.38 \
-        @rmdes/indiekit-endpoint-share@1.0.4 \
-        @rmdes/indiekit-endpoint-site-config@1.0.0-beta.2 \
-        @indiekit/endpoint-json-feed \
-        @rmdes/indiekit-endpoint-webmention-io@1.0.8 \
-        @indiekit/post-type-article \
-        @indiekit/post-type-audio \
-        @indiekit/post-type-bookmark \
-        @indiekit/post-type-event \
-        @indiekit/post-type-jam \
-        @indiekit/post-type-like \
-        @indiekit/post-type-note \
-        @indiekit/post-type-photo \
-        @indiekit/post-type-reply \
-        @indiekit/post-type-repost \
-        @indiekit/post-type-rsvp \
-        @indiekit/post-type-video \
-        @rmdes/indiekit-post-type-page@1.0.4 \
-        @rmdes/indiekit-endpoint-github@1.2.7 \
-        @rmdes/indiekit-endpoint-funkwhale@1.0.13 \
-        @rmdes/indiekit-endpoint-lastfm@1.0.13 \
-        @rmdes/indiekit-endpoint-youtube@1.2.3 \
-        @rmdes/indiekit-endpoint-rss@1.0.15 \
-        @rmdes/indiekit-endpoint-microsub@1.0.63 \
-        @rmdes/indiekit-syndicator-indienews@1.0.1 \
-        @rmdes/indiekit-endpoint-podroll@1.0.14 \
-        @rmdes/indiekit-endpoint-webmention-sender@1.0.9 \
-        @rmdes/indiekit-endpoint-blogroll@1.0.24 \
-        @rmdes/indiekit-endpoint-cv@1.0.27 \
-        @rmdes/indiekit-preset-eleventy@1.0.0-beta.38 \
-        @rmdes/indiekit-endpoint-files@1.0.3 \
-        @rmdes/indiekit-endpoint-conversations@2.4.3 \
-        @rmdes/indiekit-endpoint-comments@1.0.16 \
-        @rmdes/indiekit-endpoint-readlater@1.0.6 \
-        @rmdes/indiekit-startup-gate@1.0.0 \
-        @rmdes/indiekit-endpoint-activitypub@3.13.6
-# NOTE: @rmdes/indiekit-endpoint-donation is chardonsbleus-specific and not
-# part of the shared rmendes build. Until per-site plugin loadout is
-# implemented (the un-built "Plan B" from the May 2026 brainstorm), site-
-# specific plugins should NOT be added to this shared Dockerfile.
-# TODO: Add @rmdes/indiekit-endpoint-bluesky-pds once published to npm, e.g.:
-#       @rmdes/indiekit-endpoint-bluesky-pds@0.1.0
-# Until then, install locally via: npm install /path/to/indiekit-endpoint-bluesky-pds
+    gosu cloudron:cloudron npm install --legacy-peer-deps
 
 # Copy Eleventy site (submodule with overrides already applied by Makefile)
 # The Makefile's 'prepare' step copies overrides/ contents over the submodule before build
@@ -147,6 +104,9 @@ COPY migrated-content /app/pkg/migrated-content
 # Copy config files
 # Base files are templates in repo, personal overrides applied via Makefile before build
 COPY start.sh syndicate-backlog.sh indiekit.config.js.template nginx.conf.template /app/pkg/
-COPY indiekit.config.js nginx.conf redirects.map old-blog-redirects.map /app/pkg/
+# Per-site indiekit.config.js composed by scripts/compose-site.mjs.
+# start.sh copies this from /app/pkg/ to /app/data/config/ at container start.
+COPY sites/${SITE}/.compiled/indiekit.config.js /app/pkg/indiekit.config.js
+COPY nginx.conf redirects.map old-blog-redirects.map /app/pkg/
 
 CMD [ "/app/pkg/start.sh" ]
