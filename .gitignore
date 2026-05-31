@@ -14,7 +14,16 @@ env.sh.*
 # Per-site overlays (one directory per deployment).
 # Each contains config/, optional theme/, optional overrides/.
 # See README "Multi-site deployment" for the convention.
-sites/
+#
+# Wholesale ignore EXCEPT plugins.yaml (Plan B manifests, no secrets).
+# The negation chain re-includes only the directories needed to reach
+# plugins.yaml — env.sh and other site-specific files stay out.
+sites/*
+!sites/*/
+!sites/*/config/
+!sites/*/config/plugins.yaml
+# Generated composer output (runtime artifact, not source)
+sites/*/.compiled/
 
 # The active-site marker (per machine, not committed).
 .current-site
