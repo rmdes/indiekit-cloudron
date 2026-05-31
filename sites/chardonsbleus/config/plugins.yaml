@@ -1,0 +1,35 @@
+# chardonsbleus.org plugin manifest
+# Note: core is implicit (see plugin-registry/plugin-registry.yaml > core)
+#
+# Hand-written. chardonsbleus is a simpler site than rmendes — no music/code/
+# video integrations, no fediverse, no microsub. Adds the donation endpoint.
+
+post_types:
+  event:  { enabled: false }
+  jam:    { enabled: false }
+  rsvp:   { enabled: false }
+  audio:  { enabled: false }
+
+syndicators:
+  mastodon: { enabled: true }
+
+endpoints:
+  webmention-io:     { enabled: true }
+  webmention-sender: { enabled: true }
+  comments:          { enabled: true }
+  donation:          { enabled: true }
+  blogroll:          { enabled: true }
+  rss:               { enabled: true }
+  # Explicit disables for clarity (already disabled by default in registry)
+  cv:                { enabled: false }
+  microsub:          { enabled: false }
+  conversations:     { enabled: false }
+  activitypub:       { enabled: false }
+  github:            { enabled: false }
+  funkwhale:         { enabled: false }
+  lastfm:            { enabled: false }
+  youtube:           { enabled: false }
+  linkedin-oauth:    { enabled: false }
+  podroll:           { enabled: false }
+  readlater:         { enabled: false }
+  bluesky-pds:       { enabled: false }
