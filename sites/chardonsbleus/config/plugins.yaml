@@ -11,7 +11,9 @@ post_types:
   audio:  { enabled: false }
 
 syndicators:
-  mastodon: { enabled: true }
+  mastodon:  { enabled: true }
+  bluesky:   { enabled: true }
+  linkedin:  { enabled: true }   # paired with linkedin-oauth endpoint below
 
 endpoints:
   webmention-io:     { enabled: true }
@@ -19,17 +21,17 @@ endpoints:
   comments:          { enabled: true }
   blogroll:          { enabled: true }
   rss:               { enabled: true }
+  youtube:           { enabled: true }
+  linkedin-oauth:    { enabled: true }   # OAuth token manager for linkedin syndicator
   # Explicit disables for clarity (already disabled by default in registry)
   donation:          { enabled: false }   # backend not validated yet; defer until ready
-  cv:                { enabled: false }
+  cv:                { enabled: true }    # uses shared site.identity (post-unification)
   microsub:          { enabled: false }
   conversations:     { enabled: false }
   activitypub:       { enabled: false }
   github:            { enabled: false }
   funkwhale:         { enabled: false }
   lastfm:            { enabled: false }
-  youtube:           { enabled: false }
-  linkedin-oauth:    { enabled: false }
   podroll:           { enabled: false }
   readlater:         { enabled: false }
   bluesky-pds:       { enabled: false }

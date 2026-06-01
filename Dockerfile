@@ -107,6 +107,10 @@ COPY start.sh syndicate-backlog.sh indiekit.config.js.template nginx.conf.templa
 # Per-site indiekit.config.js composed by scripts/compose-site.mjs.
 # start.sh copies this from /app/pkg/ to /app/data/config/ at container start.
 COPY sites/${SITE}/.compiled/indiekit.config.js /app/pkg/indiekit.config.js
+# Per-site loaded-plugins manifest (composer output). start.sh exposes this
+# to Eleventy as _data/loaded-plugins.json so theme templates can conditionally
+# render plugin-specific UI via `{% if loadedPlugins.cv %}…{% endif %}`.
+COPY sites/${SITE}/.compiled/plugin-loadout.json /app/pkg/loaded-plugins.json
 COPY nginx.conf redirects.map old-blog-redirects.map /app/pkg/
 
 CMD [ "/app/pkg/start.sh" ]

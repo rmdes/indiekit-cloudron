@@ -34,6 +34,17 @@ elif [[ ! -f /app/data/config/indiekit.config.js ]]; then
     cp /app/pkg/indiekit.config.js.template /app/data/config/indiekit.config.js
 fi
 
+# Per-site loaded-plugins manifest → Eleventy _data file.
+# The composer (scripts/compose-site.mjs) emits sites/<site>/.compiled/plugin-loadout.json
+# which the Dockerfile bakes into /app/pkg/loaded-plugins.json. Exposing it under
+# /app/data/content/_data/ lets theme templates read `loadedPlugins.<key>` to
+# conditionally render plugin-specific UI (e.g. `{% if loadedPlugins.cv %}…{% endif %}`).
+if [[ -f /app/pkg/loaded-plugins.json ]]; then
+    mkdir -p /app/data/content/_data
+    cp /app/pkg/loaded-plugins.json /app/data/content/_data/loaded-plugins.json
+    echo "==> Exposed loaded-plugins.json to theme (_data/)"
+fi
+
 # Create user env file for secrets on first run
 if [[ ! -f /app/data/config/env.sh ]]; then
     echo "==> Creating env.sh for syndicator tokens"
