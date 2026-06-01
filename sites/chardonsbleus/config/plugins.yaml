@@ -17,10 +17,10 @@ endpoints:
   webmention-io:     { enabled: true }
   webmention-sender: { enabled: true }
   comments:          { enabled: true }
-  donation:          { enabled: true }
   blogroll:          { enabled: true }
   rss:               { enabled: true }
   # Explicit disables for clarity (already disabled by default in registry)
+  donation:          { enabled: false }   # backend not validated yet; defer until ready
   cv:                { enabled: false }
   microsub:          { enabled: false }
   conversations:     { enabled: false }
