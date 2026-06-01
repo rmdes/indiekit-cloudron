@@ -27,16 +27,21 @@ async function scaffold(name) {
     TEMPLATE_PLUGINS_YAML.replaceAll("{{NAME}}", name),
   );
 
-  await writeFile(path.join(dir, "nginx.conf"), `# nginx config for ${name}\n# TODO: configure server block and reverse proxy\n`);
-  await writeFile(path.join(dir, "redirects.map"), `# nginx rewrite map for ${name}\n`);
-  await writeFile(path.join(dir, "old-blog-redirects.map"), `# legacy redirects for ${name}\n`);
+  // env.sh is the only config file with no *.template fallback in the repo
+  // (secrets can't sensibly be templated). Other config files (nginx.conf,
+  // redirects.map, old-blog-redirects.map) intentionally LEFT UNCREATED so
+  // `make prepare` falls back to the repo's nginx.conf.template etc.
+  // Per-site overrides for those files are optional — create them only when
+  // the site needs to diverge from the shared template.
   await writeFile(path.join(dir, "env.sh"), `#!/bin/bash\n# Secrets and connection strings for ${name}\nexport INDIEKIT_MONGO_URL=""\n`);
 
   console.log(`==> Scaffolded sites/${name}/config/`);
+  console.log(`    Created: plugins.yaml, env.sh`);
+  console.log(`    Not created (use template fallback): nginx.conf, redirects.map, old-blog-redirects.map`);
   console.log(`Next steps:`);
   console.log(`  1. Edit sites/${name}/config/plugins.yaml to enable plugins`);
   console.log(`  2. Edit sites/${name}/config/env.sh with secrets`);
-  console.log(`  3. Edit sites/${name}/config/nginx.conf for the reverse proxy`);
+  console.log(`  3. (Optional) Create sites/${name}/config/nginx.conf if you need per-site nginx config`);
   console.log(`  4. make compose SITE=${name}`);
   console.log(`  5. make build SITE=${name}`);
 }
