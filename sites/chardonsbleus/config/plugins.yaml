@@ -24,7 +24,7 @@ endpoints:
   youtube:           { enabled: true }
   linkedin-oauth:    { enabled: true }   # OAuth token manager for linkedin syndicator
   # Explicit disables for clarity (already disabled by default in registry)
-  donation:          { enabled: false }   # backend not validated yet; defer until ready
+  donation:          { enabled: true }    # Stripe-backed campaigns; needs STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET in env.sh
   cv:                { enabled: true }    # uses shared site.identity (post-unification)
   microsub:          { enabled: false }
   conversations:     { enabled: false }
