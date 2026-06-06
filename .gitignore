@@ -23,6 +23,15 @@ sites/*
 !sites/*/config/
 !sites/*/config/plugins.yaml
 !sites/*/config/indiekit.config.js
+# Re-ignore per-site materialized/secret files that the directory
+# re-inclusion above would otherwise expose. env.sh is covered by the
+# global rule; nginx.conf and the *.map files are materialized at build
+# time (or copied from *.template) and must never be committed. Only
+# plugins.yaml and indiekit.config.js are tracked per-site sources.
+sites/*/config/nginx.conf
+sites/*/config/redirects.map
+sites/*/config/old-blog-redirects.map
+sites/*/migrated-content/
 # Generated composer output (runtime artifact, not source)
 sites/*/.compiled/
 

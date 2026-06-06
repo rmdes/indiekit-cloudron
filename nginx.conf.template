@@ -153,6 +153,20 @@ http {
             add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; base-uri 'self'; form-action *" always;
         }
 
+        # Serve media files (photos, images, videos, audio) directly from filesystem
+        # More specific regex takes precedence over the /media proxy below.
+        # Without this, /media/* file GETs are proxied to Indiekit, which only
+        # exposes the upload/query API (no file-GET route) and redirects to
+        # /session/login — breaking public images and the /image IPX thumbnail
+        # proxy (server-side fetch gets the login redirect, not image bytes).
+        location ~ "^/media/(photos|images|videos|audio)/(.+)$" {
+            alias /app/data/content/media/$1/$2;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+            add_header Access-Control-Allow-Origin "*";
+        }
+
+        # Media endpoint API (upload, delete, query) - proxied to Indiekit
         location /media {
             proxy_pass http://127.0.0.1:8080;
             proxy_set_header Host $proxy_host;
