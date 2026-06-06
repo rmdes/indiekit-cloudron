@@ -49,10 +49,16 @@ CONFIG_FILES := nginx.conf indiekit.config.js redirects.map old-blog-redirects.m
 CLOUDRON_IMAGE   := rmdes/indiekit-cloudron
 UPSTREAM_VERSION := $(shell node -p "require('./CloudronManifest.json').upstreamVersion" 2>/dev/null)
 
-# Build counter for cache-busting (incremented per package release).
-# Stays decoupled from UPSTREAM_VERSION so the manifest's upstreamVersion can
-# track the actual upstream @indiekit/indiekit release without artificial bumps.
-BUILD_NUMBER := $(shell cat .cloudron-build 2>/dev/null || echo 0)
+# Per-site cache-busting build counter, auto-incremented after every successful
+# build (see `build` / `build-cached`). Each site keeps its own counter file
+# (.cloudron-build.<site>) so numbers never interleave across sites and every
+# deploy gets a UNIQUE image tag — a repeated tag makes Cloudron serve a stale
+# cached image instead of the freshly built one. Falls back to the legacy
+# shared .cloudron-build (for migration), then 0.
+# Decoupled from UPSTREAM_VERSION so the manifest can track the real upstream
+# @indiekit/indiekit release without artificial bumps.
+BUILD_COUNTER_FILE := .cloudron-build.$(SITE)
+BUILD_NUMBER := $(shell cat .cloudron-build.$(SITE) 2>/dev/null || cat .cloudron-build 2>/dev/null || echo 0)
 
 # Per-site image tag: <site>-<upstream>-build<n>  (e.g. rmendes-1.0.0-beta.27-build30)
 # This prevents building chardonsbleus from overwriting rmendes's image in the registry.
@@ -158,12 +164,16 @@ build: compose prepare ## Apply overrides and build via `cloudron build --no-cac
 	$(require_site)
 	@echo "==> Building Cloudron app for SITE=$(SITE) → $(FULL_IMAGE)"
 	cloudron build --no-cache --tag $(IMAGE_TAG) --build-arg SITE=$(SITE)
+	@echo $$(( $(BUILD_NUMBER) + 1 )) > $(BUILD_COUNTER_FILE)
+	@echo "==> $(SITE) build counter → $$(cat $(BUILD_COUNTER_FILE)) (used for next build)"
 
 .PHONY: build-cached
 build-cached: compose prepare ## Build with cache
 	$(require_site)
 	@echo "==> Building Cloudron app for SITE=$(SITE) (cached) → $(FULL_IMAGE)"
 	cloudron build --tag $(IMAGE_TAG) --build-arg SITE=$(SITE)
+	@echo $$(( $(BUILD_NUMBER) + 1 )) > $(BUILD_COUNTER_FILE)
+	@echo "==> $(SITE) build counter → $$(cat $(BUILD_COUNTER_FILE)) (used for next build)"
 
 # ─── Plugin manifest (Plan B) ───
 

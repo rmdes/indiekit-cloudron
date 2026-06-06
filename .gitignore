@@ -38,6 +38,10 @@ sites/*/.compiled/
 # The active-site marker (per machine, not committed).
 .current-site
 
+# Per-site cache-busting build counters (per machine, auto-incremented by the
+# Makefile). Not committed — they track local build state, like .current-site.
+.cloudron-build.*
+
 # Legacy convention (pre-multi-site refactor) — *.<name> dot-suffixed
 # overrides. Kept here so existing local checkouts don't accidentally
 # commit personal data after pulling the refactored Makefile.
