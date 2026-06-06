@@ -65,6 +65,13 @@ BUILD_NUMBER := $(shell cat .cloudron-build.$(SITE) 2>/dev/null || cat .cloudron
 IMAGE_TAG  := $(SITE)-$(UPSTREAM_VERSION)-build$(BUILD_NUMBER)
 FULL_IMAGE := $(CLOUDRON_IMAGE):$(IMAGE_TAG)
 
+# Most-recently-built image (counter - 1): `build` advances the counter on
+# success, so the just-built image is one behind. `make update` (redeploy
+# without rebuild — e.g. retry after a transient deploy failure) targets this.
+LAST_BUILD_NUMBER := $(shell echo $$(( $(BUILD_NUMBER) - 1 )))
+LAST_IMAGE_TAG := $(SITE)-$(UPSTREAM_VERSION)-build$(LAST_BUILD_NUMBER)
+LAST_FULL_IMAGE := $(CLOUDRON_IMAGE):$(LAST_IMAGE_TAG)
+
 # Guard that errors out when an action requires a SITE but none is set.
 define require_site
 	@if [ -z "$(SITE)" ]; then \
@@ -290,11 +297,11 @@ deploy: build ## Build and deploy to the Cloudron app named in APP=
 	cloudron update --app $(APP) --image $(FULL_IMAGE) --no-backup
 
 .PHONY: update
-update: ## Deploy without rebuild (requires SITE= and APP=)
+update: ## Redeploy the last-built image without rebuilding (requires SITE= and APP=)
 	$(require_site)
 	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required for update"; exit 1; fi
-	@echo "==> Updating $(APP) with image $(FULL_IMAGE)..."
-	cloudron update --app $(APP) --image $(FULL_IMAGE) --no-backup
+	@echo "==> Updating $(APP) with last-built image $(LAST_FULL_IMAGE)..."
+	cloudron update --app $(APP) --image $(LAST_FULL_IMAGE) --no-backup
 
 .PHONY: push-env
 push-env: ## Push the active site's env.sh into the running container
