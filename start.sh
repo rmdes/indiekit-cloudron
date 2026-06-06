@@ -24,6 +24,23 @@ if [[ -d /app/pkg/migrated-content ]]; then
     echo "==> Migration merge complete"
 fi
 
+# Seed Eleventy layout directory-data files so a fresh content volume renders
+# through the theme out of the box. Eleventy assigns no layout to Micropub-created
+# .md files on its own; these directory-data files map content dirs → theme
+# layouts. Without them, pages/notes render as raw HTML with no <head> (no
+# charset → mojibake). Idempotent: only created when missing, so a site that
+# customizes these keeps its own version (e.g. rmendes is left untouched).
+echo "==> Seeding Eleventy layout data files (if missing)"
+if [[ ! -f /app/data/content/content.json ]]; then
+    echo '{"layout": "layouts/post.njk"}' > /app/data/content/content.json
+    echo "    seeded content/content.json (default layout for all content)"
+fi
+mkdir -p /app/data/content/pages
+if [[ ! -f /app/data/content/pages/pages.json ]]; then
+    echo '{"layout": "layouts/page.njk"}' > /app/data/content/pages/pages.json
+    echo "    seeded content/pages/pages.json (slash-page layout)"
+fi
+
 # Update config from bundled version (supports personal overrides via .rmendes pattern)
 # Always update to ensure config changes are applied on deploy
 if [[ -f /app/pkg/indiekit.config.js ]]; then
