@@ -559,6 +559,28 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
     done
 ) &
 
+# ─── Full-rebuild trigger on site-config / homepage changes ───
+# The site-config admin writes site-config.json and homepage.json. The theme reads
+# them via Eleventy GLOBAL DATA (_data/site.js, _data/homepageConfig.js) using fs,
+# which Eleventy's --incremental watcher cannot attribute to any template — so an
+# admin save (branding aside, which uses the directly-watched theme.css) does NOT
+# propagate to rendered pages until a full rebuild. Watch these two files' mtimes
+# and, on change, restart the Eleventy watcher; its next start does a full build
+# that re-runs global data and re-renders every page with the new config.
+(
+    WATCHED="/app/data/content/_data/site-config.json /app/data/content/_data/homepage.json"
+    SIG_LAST=""
+    while true; do
+        SIG_NOW=$(stat -c %Y $WATCHED 2>/dev/null | tr '\n' ',')
+        if [ -n "$SIG_LAST" ] && [ "$SIG_NOW" != "$SIG_LAST" ]; then
+            echo "==> [rebuild-trigger] site-config/homepage changed — restarting Eleventy watcher for a full rebuild"
+            pkill -f "node_modules/.bin/eleventy" 2>/dev/null || true
+        fi
+        SIG_LAST="$SIG_NOW"
+        sleep 8
+    done
+) &
+
 # Memory monitor — logs RSS for all Node.js processes every 10 minutes.
 # Helps detect slow memory leaks over days. Output appears in `cloudron logs`.
 # To analyze: cloudron logs --app rmendes.net | grep '\[mem-monitor\]'
