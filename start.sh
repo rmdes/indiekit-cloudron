@@ -556,19 +556,25 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
             --watch --incremental --output=/app/data/site
         EXIT_CODE=$?
         echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
-        if [ $EXIT_CODE -ne 0 ]; then
-            if [ -f /tmp/.eleventy-intentional-restart ]; then
-                rm -f /tmp/.eleventy-intentional-restart
-                echo "[eleventy-watcher] Intentional restart (config change) — not a failure"
-            else
-                # Crash: surface it to the admin UI via build-status (Phase 5).
-                # jq isn't guaranteed; write with a heredoc + date.
-                cat > /app/data/build-status.json.tmp <<EOF
+        # Consume the sentinel on EVERY exit (even exit 0) so a stale sentinel
+        # can never mask a later real crash.
+        INTENTIONAL=false
+        if [ -f /tmp/.eleventy-intentional-restart ]; then
+            rm -f /tmp/.eleventy-intentional-restart
+            INTENTIONAL=true
+            echo "[eleventy-watcher] Intentional restart (config change) — not a failure"
+        fi
+        if [ $EXIT_CODE -ne 0 ] && [ "$INTENTIONAL" != "true" ]; then
+            # Crash: surface it to the admin UI via build-status (Phase 5).
+            # jq isn't guaranteed; write with a heredoc + date.
+            cat > /app/data/build-status.json.tmp <<EOF
 {"state":"failed","error":"watcher exited with code ${EXIT_CODE}","finishedAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
 EOF
-                mv /app/data/build-status.json.tmp /app/data/build-status.json || true
-                echo "[eleventy-watcher] Crash captured in build-status.json"
-            fi
+            mv /app/data/build-status.json.tmp /app/data/build-status.json || true
+            # Supervisor runs as root; Eleventy's ok/building writer runs as cloudron.
+            # chown so the cloudron-side writer never hits an ownership surprise.
+            chown cloudron:cloudron /app/data/build-status.json 2>/dev/null || true
+            echo "[eleventy-watcher] Crash captured in build-status.json"
         fi
     done
 ) &
