@@ -683,10 +683,23 @@ http {
 
         # Site-builder true preview (Phase 5): unguessable token paths.
         # No access log (tokens would leak into cloudron logs), never indexed.
+        # 404s must stay token-silent too: the server-level
+        # `error_page 404 /404.html` internally redirects OUT of this location
+        # and the catch-all would log the original token-bearing request line.
+        # @preview_404 keeps the error in an access_log-off context
+        # (recursive_error_pages is off, so its `return 404` cannot loop).
+        # Referrer-Policy: links clicked inside the preview iframe would
+        # otherwise leak the token via the Referer header on the next request.
         location ^~ /preview/ {
             access_log off;
             add_header X-Robots-Tag "noindex" always;
+            add_header Referrer-Policy "no-referrer" always;
+            error_page 404 = @preview_404;
             try_files $uri $uri/ $uri.html =404;
+        }
+        location @preview_404 {
+            access_log off;
+            return 404;
         }
 
         # ── Markdown for Agents ────────────────────────────────────────
