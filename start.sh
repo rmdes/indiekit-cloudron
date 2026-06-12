@@ -551,13 +551,18 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
             fi
         fi
 
+        # A fresh watcher start invalidates any pending sentinel — a config change
+        # that touched it during the backoff window is picked up by this build anyway.
+        rm -f /tmp/.eleventy-intentional-restart
+
         # Use absolute path — gosu's exec may not resolve relative paths from subshell cwd
         gosu cloudron:cloudron /app/pkg/eleventy-site/node_modules/.bin/eleventy \
             --watch --incremental --output=/app/data/site
         EXIT_CODE=$?
         echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
-        # Consume the sentinel on EVERY exit (even exit 0) so a stale sentinel
-        # can never mask a later real crash.
+        # Consume the sentinel on every exit (even exit 0); combined with the
+        # clear before each watcher start, a stale sentinel can never mask a
+        # later real crash.
         INTENTIONAL=false
         if [ -f /tmp/.eleventy-intentional-restart ]; then
             rm -f /tmp/.eleventy-intentional-restart
