@@ -556,6 +556,20 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
             --watch --incremental --output=/app/data/site
         EXIT_CODE=$?
         echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
+        if [ $EXIT_CODE -ne 0 ]; then
+            if [ -f /tmp/.eleventy-intentional-restart ]; then
+                rm -f /tmp/.eleventy-intentional-restart
+                echo "[eleventy-watcher] Intentional restart (config change) — not a failure"
+            else
+                # Crash: surface it to the admin UI via build-status (Phase 5).
+                # jq isn't guaranteed; write with a heredoc + date.
+                cat > /app/data/build-status.json.tmp <<EOF
+{"state":"failed","error":"watcher exited with code ${EXIT_CODE}","finishedAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+EOF
+                mv /app/data/build-status.json.tmp /app/data/build-status.json || true
+                echo "[eleventy-watcher] Crash captured in build-status.json"
+            fi
+        fi
     done
 ) &
 
@@ -574,6 +588,9 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
         SIG_NOW=$(stat -c %Y $WATCHED 2>/dev/null | tr '\n' ',')
         if [ -n "$SIG_LAST" ] && [ "$SIG_NOW" != "$SIG_LAST" ]; then
             echo "==> [rebuild-trigger] site-config/homepage changed — restarting Eleventy watcher for a full rebuild"
+            # Sentinel: tells the watcher supervisor this exit is intentional,
+            # so the Phase 5 crash wrapper doesn't report it as a failed build.
+            touch /tmp/.eleventy-intentional-restart
             pkill -f "node_modules/.bin/eleventy" 2>/dev/null || true
         fi
         SIG_LAST="$SIG_NOW"

@@ -681,6 +681,14 @@ http {
             add_header X-Cache-Status $upstream_cache_status always;
         }
 
+        # Site-builder true preview (Phase 5): unguessable token paths.
+        # No access log (tokens would leak into cloudron logs), never indexed.
+        location ^~ /preview/ {
+            access_log off;
+            add_header X-Robots-Tag "noindex" always;
+            try_files $uri $uri/ $uri.html =404;
+        }
+
         # ── Markdown for Agents ────────────────────────────────────────
         # Serve clean Markdown for articles when requested via .md extension
         # AI agents (Claude Code, OpenCode, etc.) get raw content without HTML chrome
