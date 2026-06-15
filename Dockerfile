@@ -72,7 +72,8 @@ RUN rm -rf /app/pkg/eleventy-site/content && ln -s /app/data/content /app/pkg/el
     rm -rf /app/pkg/eleventy-site/_site && ln -s /app/data/site /app/pkg/eleventy-site/_site && \
     rm -rf /app/pkg/eleventy-site/images/user && mkdir -p /app/pkg/eleventy-site/images && ln -s /app/data/images /app/pkg/eleventy-site/images/user && \
     rm -rf /app/pkg/eleventy-site/.cache && ln -s /app/data/cache /app/pkg/eleventy-site/.cache && \
-    ln -s /app/data/uploads /app/pkg/eleventy-site/uploads
+    ln -s /app/data/uploads /app/pkg/eleventy-site/uploads && \
+    rm -rf /app/pkg/eleventy-site/media && ln -s /app/data/content/media /app/pkg/eleventy-site/media
 
 # Patch routes.js: remove rate limiting from authenticated routes
 # Upstream applies the same rate limiter to ALL routes. Authenticated routes (after
