@@ -75,3 +75,37 @@ test("compose generates plugins array in indiekit.config.js", () => {
   assert.match(r.indiekitConfig, /"@indiekit\/post-type-article"/);
   assert.ok(!r.indiekitConfig.includes("post-type-jam"));
 });
+
+test("compose emits the eleventy preset AFTER every post-type plugin", () => {
+  // The preset configures each post type's `post.path`/`url` from the post
+  // types registered when its init() runs. Post types listed only in the site
+  // array (repost, video, audio, event, jam, rsvp) must register BEFORE the
+  // preset, or they get no path → "No configuration provided for <type>".
+  const registry = {
+    core: [
+      { key: "site-config", package: "@rmdes/indiekit-endpoint-site-config", version: "^1.0.0" },
+      { key: "preset-eleventy", package: "@rmdes/indiekit-preset-eleventy", version: "^1.0.0" },
+      { key: "store-file-system", package: "@indiekit/store-file-system", version: "^1.0.0" },
+      { key: "post-type-page", package: "@rmdes/indiekit-post-type-page", version: "^1.0.0" },
+    ],
+    post_types: [
+      { key: "article", package: "@indiekit/post-type-article", default_enabled: true },
+      { key: "repost", package: "@indiekit/post-type-repost", default_enabled: true },
+    ],
+  };
+  const r = composeFromInputs(registry, {}, BASE_PACKAGE_JSON, TEMPLATE);
+  const lines = r.indiekitConfig.split("\n");
+  const idx = (pkg) => lines.findIndex((l) => l.includes(`"${pkg}"`));
+
+  const presetIdx = idx("@rmdes/indiekit-preset-eleventy");
+  const articleIdx = idx("@indiekit/post-type-article");
+  const repostIdx = idx("@indiekit/post-type-repost");
+  const pageIdx = idx("@rmdes/indiekit-post-type-page");
+
+  assert.ok(presetIdx > -1, "preset present in plugins array");
+  assert.ok(repostIdx > -1, "repost present in plugins array");
+  assert.ok(presetIdx > articleIdx, "preset must come after article");
+  assert.ok(presetIdx > repostIdx, "preset must come after repost");
+  // post-type-page is a core post type; it too must register before the preset
+  assert.ok(presetIdx > pageIdx, "preset must come after post-type-page");
+});

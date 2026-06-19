@@ -41,6 +41,28 @@ export function composeFromInputs(registry, manifest, basePackageJson, template)
     }
   }
 
+  // The Eleventy preset (`@rmdes/indiekit-preset-eleventy`) configures each post
+  // type's `post.path`/`url` from the post types registered when its init() runs.
+  // Indiekit deep-merges the site plugins AFTER @indiekit/indiekit's own defaults
+  // (which already include article/note/reply/like/bookmark/photo), so those
+  // default types are configured — but post types that exist ONLY in the site
+  // array (repost, video, audio, event, jam, rsvp, …) load after the preset and
+  // get no path → "No configuration provided for <type>" on Micropub create.
+  // The preset lives in the `core` tier, which is emitted before `post_types`,
+  // so move it to just after the last post_types entry to satisfy the preset's
+  // ordering contract ("post types MUST be loaded before the preset").
+  const presetIndex = selected.findIndex((e) => e.key === "preset-eleventy");
+  if (presetIndex !== -1) {
+    const [preset] = selected.splice(presetIndex, 1);
+    let lastPostTypeIndex = -1;
+    for (let i = 0; i < selected.length; i++) {
+      if (selected[i].tier === "post_types") lastPostTypeIndex = i;
+    }
+    const insertAt =
+      lastPostTypeIndex === -1 ? selected.length : lastPostTypeIndex + 1;
+    selected.splice(insertAt, 0, preset);
+  }
+
   // Build package.json deps.
   // - Skip 'overridden:true' entries: they're auto-installed as transitive deps
   //   of @indiekit/indiekit, and the package.json overrides field swaps them to
