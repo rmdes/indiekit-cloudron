@@ -726,6 +726,20 @@ http {
             return 406 "No Markdown version available for this content type.\nHTML version: https://$proxy_host/$1/\n";
         }
 
+        # Gated category pages (below the per-site threshold) generate no listing
+        # page. Serve real ones; bounce missing/gated ones to the categories index
+        # with the slug pre-loaded as a search query — the index's Pagefind box
+        # auto-runs ?q=, surfacing the gated category's posts. 302 (not 301): a
+        # category can cross the threshold later and regain its own page.
+        location ^~ /categories/ {
+            error_page 404 = @category_gone;
+            try_files $uri $uri/ $uri.html =404;
+        }
+        location @category_gone {
+            rewrite "^/categories/([^/]+)/?$" /categories/?q=$1 redirect;
+            return 302 /categories/;
+        }
+
         # Default: serve Eleventy static site
         # ActivityPub clients (Mastodon, etc.) get proxied to Indiekit for
         # actor document at / and AS2 representations of individual posts
