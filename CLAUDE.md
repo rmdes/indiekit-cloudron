@@ -282,46 +282,44 @@ cloudron exec --app rmendes.net
 
 **CRITICAL: Always use `cloudron build`, never `docker build` directly.**
 
-### Checking if the Eleventy Release Swap Happened
+### Checking if the Eleventy Build Completed
 
-After `cloudron update` or `cloudron restart`, the old site continues serving while Eleventy builds a new release. Use these commands to monitor progress:
+> **The atomic release swap is currently DISABLED** (see "Build Architecture" below). In `start.sh` the initial-build-to-new-release block is commented out (`INITIAL_BUILD_OK=false`, lines ~431–496) because the Eleventy initial build (~3.9 GB peak RSS) + Indiekit exceeds the 4 GB cgroup → OOM. Instead the Eleventy **watcher** does a full build **in place** into the current release dir (`eleventy --watch --incremental --output=/app/data/site`). Consequences: **`readlink /app/data/site` does NOT change after a deploy**, there is **NO `==> Swapped to release` log line**, and no new per-deploy `releases/` dir is created. Do not wait for a swap — it will never come.
+
+After `cloudron update` or `cloudron restart`, the watcher rebuilds `/app/data/site` in place over ~5 min. **`cloudron update` reporting "App is updated" + a passing health check does NOT mean the new build succeeded** — a build can fail and silently leave stale/partial content in place. Confirm the build with these signals:
 
 ```bash
-# 1. Check which release is currently being served (symlink target)
-cloudron exec --app rmendes.net -- readlink /app/data/site
-# Returns e.g. /app/data/releases/1773764294
+# 1. Build completion — the authoritative signal (no fatal, all files written)
+cloudron logs --app rmendes.net 2>&1 | grep -E "\[11ty\] Wrote [0-9]+ files"
 
-# 2. List all releases (newest first by timestamp name)
-cloudron exec --app rmendes.net -- ls -lt /app/data/releases/
+# 2. Build status artifact (start.sh + eleventy.after write it): state ok|building|failed
+cloudron exec --app rmendes.net -- cat /app/data/build-status.json
 
-# 3. Check if Eleventy is still building (shows --output=<new release>)
-cloudron exec --app rmendes.net -- bash -c 'ps aux | grep eleventy | grep -v grep'
+# 3. Any fatal that FAILED the build (a failed build serves stale/partial in place)
+cloudron logs --app rmendes.net 2>&1 | grep -iE "Eleventy Fatal Error|Having trouble writing"
 
-# 4. Check build progress — pagefind directory means build is nearly done
-cloudron exec --app rmendes.net -- bash -c 'ls /app/data/releases/<NEW_TIMESTAMP>/pagefind/ 2>/dev/null | head -3'
+# 4. Watcher state: high CPU = still building, low CPU = idle-watching (build done)
+cloudron exec --app rmendes.net -- bash -c 'ps -o pcpu,etime,args -C node | grep "eleventy.*--watch"'
 
-# 5. Check OG image count (OG phase completes before template rendering)
-cloudron exec --app rmendes.net -- bash -c 'ls /app/data/releases/<NEW_TIMESTAMP>/og/ 2>/dev/null | wc -l'
-
-# 6. Search logs for swap confirmation message
-cloudron logs --app rmendes.net 2>&1 | grep -i "swap"
+# 5. Public smoke test — the ultimate confirmation the new build is live
+curl -sL -o /dev/null -w "%{http_code}\n" https://rmendes.net/
 ```
 
-**Build phases (in order):**
+**Build phases (in order, all inside the watcher's first full build):**
 1. OG image generation (~2 min, batch spawning)
 2. Template rendering (3,400+ pages)
-3. Pagefind indexing
-4. Atomic symlink swap (`mv -T`) + nginx reload
-5. Watcher starts with `--watch --incremental`
+3. Pagefind indexing + `eleventy.after` hooks (orphan prunes, `build-status.json`, `.indiekit-ready` signal)
 
 **Timing reference:**
 - Warm build (caches populated): ~3-5 min
 - Cold build (empty caches): ~20 min
-- The symlink does NOT change until the entire build + pagefind completes
+- During the in-place build, pages are overwritten progressively — not-yet-rebuilt pages keep serving their previous content (no 404s), but it is NOT a clean atomic swap.
 
-**How to tell the swap happened:**
-- `readlink /app/data/site` points to the NEW release timestamp
-- The Eleventy process switches from `--output=<release>` to `--watch --incremental`
+**How to tell the build SUCCEEDED:**
+- `[11ty] Wrote N files` (N ≈ full page count) with no `Eleventy Fatal Error`
+- `/app/data/build-status.json` shows `"state":"ok"`
+- The watcher process drops to low CPU (idle-watching)
+- The public URL serves the expected content
 
 ## Architecture
 
@@ -349,10 +347,9 @@ Runtime (writable, backed up):
 ├── /app/data/
 │   ├── config/                   # indiekit.config.js, env.sh, .secret
 │   ├── content/                  # User posts (notes/, articles/, etc.)
-│   ├── releases/                 # Timestamped Eleventy builds
-│   │   ├── 1708300000/           # Previous release (kept for rollback)
-│   │   └── 1708400000/           # Current release
-│   ├── site -> releases/1708400000  # SYMLINK to current release (atomic swap)
+│   ├── releases/                 # Eleventy build output dir(s)
+│   │   └── 1708400000/           # The single reused release dir (built IN PLACE; not recreated per deploy)
+│   ├── site -> releases/1708400000  # SYMLINK; target is rebuilt in place (atomic swap currently disabled)
 │   ├── cache/                    # Eleventy cache
 │   ├── images/                   # User-uploaded images
 │   └── uploads/                  # Media uploads
@@ -366,22 +363,37 @@ Runtime (writable, backed up):
 4. **Syndication poller** - Background process polling `/syndicate` every 2 minutes
 5. **Webmention sender** - Background process polling `/webmention-sender` every 5 minutes
 
-### Zero-Downtime Build Architecture
+### Build Architecture (in-place watcher; atomic swap currently DISABLED)
 
-On container restart, old site continues serving while a new release builds:
+The documented zero-downtime atomic-swap flow is **retained but commented out** in `start.sh` (lines ~431–496, with `INITIAL_BUILD_OK=false` hardcoded). It is **abandoned, not just memory-blocked** — see below.
+
+> **MEASURED twice 2026-06-20 — re-enabling OOMs even with more RAM; DO NOT re-enable without a deeper fix:**
+> - At the old **3840 MB** cgroup: the swap's separate initial build climbed to **~3839 MB (99.9%)** and swap-thrashed under the OOM ceiling — never swapped, never cleanly failed over (13+ min).
+> - After raising the app to **5120 MB**: the initial build peaked ~3401 MB, then **EXPLODED to 5118 MB and cgroup-OOM-killed** (kernel OOM, no heap snapshot). It grew to FILL the new memory.
+>
+> **Root cause (why more RAM doesn't help):** the *initial* build has a late-phase memory explosion — **pagefind** indexing 3,400 pages uses native memory OUTSIDE V8's heap (uncapped by `--max-old-space-size`) — AND it runs CONCURRENTLY with Indiekit's startup spike (30+ plugins, ActivityPub/Fedify, Mongo). The **in-place watcher build avoids both** (runs after Indiekit settles). The safe fallback (`INITIAL_BUILD_OK=false` → in-place watcher) kept the site serving throughout both tests. The "~3,260 MB peak" figures elsewhere in this doc are stale.
+>
+> **To ever revisit the swap:** pagefind must run out-of-process / memory-capped AND the build must be deferred until Indiekit settles (at which point it effectively IS the watcher). Not worth it for the zero-downtime gain given the in-place build works. **Keep the app at ≥5 GB regardless** — it removed the standing OOM risk on the in-place build (now ~67–75% of 5120 MB vs 99.9% at 3840 MB).
+
+**Actual current flow on container restart:**
 
 ```
-nginx starts → root=/app/data/site → symlink to LAST release → old site serves immediately
+nginx starts → /app/data/site → symlink to the SAME (reused) release dir → serves existing content
 Indiekit starts → ready on :8080
-Eleventy full build → writes to /app/data/releases/NEW/
-Build completes → atomic symlink swap (mv -T) → nginx -s reload
-Watcher starts with --watch --incremental
-Cleanup old releases (keep 2 for rollback)
+Eleventy WATCHER starts → eleventy --watch --incremental --output=/app/data/site
+  → first pass is a FULL build, written IN PLACE into the current release dir (~5 min)
+  → eleventy.after writes build-status.json + creates /app/data/.indiekit-ready
+  → then incremental rebuilds on content changes
+(no new release dir per deploy; no `mv -T` swap; `readlink /app/data/site` unchanged)
 ```
 
-**Visitors experience:** Old content during build (~3 min warm, ~20 min cold), then seamlessly new content. Zero 404s.
+The release dir got its timestamp name from a **one-time** migration (start.sh ~line 400, converting an old real `/app/data/site` dir to a symlink) — it is NOT recreated per deploy.
 
-**Rollback:** `ln -sfn /app/data/releases/OLD_TIMESTAMP /app/data/site && nginx -s reload`
+**Visitors experience:** during the ~5 min in-place full build, already-rebuilt pages show new content and not-yet-rebuilt pages show their previous content (no 404s). NOT an atomic swap — there is a window of mixed old/new pages.
+
+**If the build fails:** the watcher supervisor captures the crash in `/app/data/build-status.json` (`"state":"failed"`) and restarts the watcher with exponential backoff. The in-place dir keeps serving whatever was last written (stale/partial) until a build succeeds. This is why a crashing build is a **silent stale-serve** — always verify build completion (see "Checking if the Eleventy Build Completed").
+
+**Rollback:** deploys reuse one release dir (no per-deploy timestamped releases), so rollback is by **redeploying a previous image** (`make deploy` after checking out the prior code/submodule), NOT by repointing the symlink.
 
 ### Startup Gate — Plugin Background Task Deferral
 
@@ -392,17 +404,15 @@ All `@rmdes/*` plugins with background tasks use `@rmdes/indiekit-startup-gate` 
 ```
 start.sh removes /app/data/.indiekit-ready    ← BEFORE Indiekit starts (line ~195)
 Indiekit starts → plugins call waitForReady() → file not found → wait
-Eleventy initial build runs (may succeed or OOM)
-  Success: start.sh creates signal after swap + nginx reload
-  Failure: watcher starts, does full build
-Eleventy's eleventy.after hook creates signal  ← covers BOTH paths
+Initial build is DISABLED (INITIAL_BUILD_OK=false) → start.sh skips the swap/signal branch
+Eleventy WATCHER starts → does a full in-place build
+Eleventy's eleventy.after hook creates the signal  ← the live path
 Plugins detect signal → start background tasks
 ```
 
 **Key implementation details:**
 - `rm -f /app/data/.indiekit-ready` MUST be before the `node ... indiekit ... serve` line in start.sh
-- `touch /app/data/.indiekit-ready` is in the success branch of start.sh (after swap)
-- `eleventy.config.js` also creates the signal in `eleventy.after` (covers watcher's first build when initial build OOMs)
+- Because the initial build + swap branch is disabled, `.indiekit-ready` is ALWAYS created by `eleventy.config.js`'s `eleventy.after` hook when the watcher's first full build completes (NOT by start.sh's `touch` in the disabled swap-success branch)
 - The signal uses `!existsSync()` guard so it's only created once per boot
 
 **When adding a new plugin to the Dockerfile:** If the plugin has background tasks, verify it uses `@rmdes/indiekit-startup-gate`. See workspace CLAUDE.md for the full pattern.
@@ -757,9 +767,11 @@ module.exports = {
 };
 ```
 
-### 10. Atomic Release Swap for Zero-Downtime Builds
+### 10. Atomic Release Swap for Zero-Downtime Builds (currently DISABLED — retained for re-enable)
 
-The start.sh builds to a timestamped release directory, then atomically swaps the symlink. Old site serves throughout the build — no 404s during restart.
+> **NOT active.** This atomic-swap pattern is commented out in `start.sh` (`INITIAL_BUILD_OK=false`) because the initial Eleventy build OOMs alongside Indiekit in the 4 GB cgroup. The live path is an in-place watcher build (see "Build Architecture"). The pattern below is the swap design to restore if the memory budget ever allows.
+
+The (disabled) design builds to a timestamped release directory, then atomically swaps the symlink so the old site serves throughout the build — no 404s during restart.
 
 ```bash
 # Build to new release directory (old site still serving)
@@ -782,6 +794,7 @@ cd /app/data/releases && ls -1t | tail -n +3 | xargs -r rm -rf
 - `ln -snf` is NOT atomic (it unlinks then links, creating a gap)
 - The watcher uses `--watch --incremental` to only rebuild changed pages
 - Hooks (OG images, Pagefind, WebSub) are skipped during incremental rebuilds
+- **Why disabled:** running the full build as a separate process before Indiekit-concurrent steady state still peaked over the cgroup limit; the watcher-only in-place build avoids a second concurrent Eleventy process. Re-enabling needs either a larger cgroup or a lower build-time heap.
 
 ### 11. Ignore Output Directory in Eleventy Config
 
@@ -977,7 +990,7 @@ When modifying this app, verify:
 | File | Check |
 |------|-------|
 | Dockerfile | Symlinks created with `ln -s`, NODE_ENV after installs |
-| start.sh | Runs from /app/pkg/eleventy-site, atomic release swap, no cp to /app/data |
+| start.sh | Runs from /app/pkg/eleventy-site, in-place watcher build (atomic swap disabled), no cp to /app/data |
 | package.json | Has `"type": "module"` |
 | eleventy.config.js | ESM syntax, `markdownTemplateEngine: false`, ignores `_site`, correct glob paths |
 | _data/*.js | All use `export default`, not `module.exports` |
@@ -1034,7 +1047,7 @@ If the fix is not clear, investigate deeper or ask the user. Destructive shortcu
 6. ❌ Using CommonJS (`module.exports`) in ESM project (`"type": "module"`)
 7. ❌ `markdownTemplateEngine: "njk"` with code samples in content
 8. ❌ Referencing `/app/code/node_modules/.bin/eleventy` for Eleventy
-9. ❌ Wiping `/app/data/site/*` before building — use atomic release swap instead (zero-downtime)
+9. ❌ Wiping `/app/data/site/*` before building — the watcher rebuilds it in place; wiping causes a full-downtime gap (atomic swap is currently disabled, so there's no old-release fallback)
 10. ❌ Using `blog.rmendes.net` instead of `rmendes.net` - this is the production domain
 11. ❌ Disabling/removing features to work around bugs - find the root cause
 12. ❌ Editing theme files in `eleventy-site/` submodule instead of `indiekit-eleventy-theme/`
@@ -1068,34 +1081,18 @@ cloudron exec --app rmendes.net -- rm -rf /app/data/eleventy
 
 ### Manual Rebuild After Data Cleanup
 
-After fixing data issues, trigger a manual rebuild using the atomic release swap:
+After fixing data issues, trigger a full rebuild with **`cloudron restart`** — it re-runs `start.sh`, which sources the full environment (env.sh, secrets, plugin config) and starts the Eleventy watcher that does a full in-place build with proper context:
 
 ```bash
-# Build a new release and swap atomically
-cloudron exec --app rmendes.net -- bash -c '
-  RELEASE_TS=$(date +%s)
-  NEW_RELEASE="/app/data/releases/${RELEASE_TS}"
-  mkdir -p "${NEW_RELEASE}"
-  cd /app/pkg/eleventy-site && ./node_modules/.bin/eleventy --output="${NEW_RELEASE}"
-  ln -s "${NEW_RELEASE}" /app/data/site_tmp
-  chown -h cloudron:cloudron /app/data/site_tmp
-  mv -T /app/data/site_tmp /app/data/site
-  nginx -s reload
-  echo "Swapped to release ${RELEASE_TS}"
-'
+cloudron restart --app rmendes.net
+# then confirm the build completed (see "Checking if the Eleventy Build Completed")
 ```
 
-### Rollback to Previous Release
+> **NEVER run `eleventy` directly via `cloudron exec`.** It runs without the environment `start.sh` sets up (`SITE_NAME`, `AUTHOR_NAME`, plugin/secret config), producing a broken build that overwrites the in-place output with placeholder/default values. The ONLY safe full-rebuild trigger is `cloudron restart`. (The old "manual release swap" recipe here is obsolete — the swap is disabled and the manual build was unsafe.)
 
-If a new release has issues, swap back to the previous one:
+### Rollback After a Bad Deploy
 
-```bash
-# List available releases
-cloudron exec --app rmendes.net -- ls -1t /app/data/releases/
-
-# Swap to a specific release
-cloudron exec --app rmendes.net -- bash -c 'ln -sfn /app/data/releases/TIMESTAMP /app/data/site && nginx -s reload'
-```
+Because deploys reuse one in-place release dir (no per-deploy timestamped releases, atomic swap disabled), there is no symlink to repoint for rollback. To roll back, **redeploy the previous image**: check out the prior code/submodule state and `make deploy SITE=<site> APP=<app>`, then confirm the build completed. (A bad *content/data* state is instead fixed forward + `cloudron restart`.)
 
 ## Workspace Context
 
