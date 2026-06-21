@@ -601,12 +601,17 @@ EOF
     # does NOT propagate until a full rebuild. Restart the watcher on any change.
     # (Adding compositions/*.json fixes composed-PAGE publish + preview propagation;
     # previously only site-config.json/homepage.json were watched — Phase 7 gap.)
+    # cv.json is written by @rmdes/indiekit-endpoint-cv and read by the theme's
+    # _data/cv.js global (same fs-read pattern); since /cv is now a composed page
+    # whose cv-* blocks read that global, a CV admin save also needs a full rebuild
+    # to propagate (Phase 7a write-path move: was .indiekit/cv.json).
     SIG_LAST=""
     while true; do
         SIG_NOW=$(stat -c %Y \
             /app/data/content/_data/site-config.json \
             /app/data/content/_data/homepage.json \
             /app/data/content/_data/compositions/*.json \
+            /app/data/content/_data/cv.json \
             2>/dev/null | tr '\n' ',')
         if [ -n "$SIG_LAST" ] && [ "$SIG_NOW" != "$SIG_LAST" ]; then
             echo "==> [rebuild-trigger] site-config/homepage/composition artifact changed — restarting Eleventy watcher for a full rebuild"
