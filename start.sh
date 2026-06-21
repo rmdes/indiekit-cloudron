@@ -593,12 +593,23 @@ EOF
 # and, on change, restart the Eleventy watcher; its next start does a full build
 # that re-runs global data and re-renders every page with the new config.
 (
-    WATCHED="/app/data/content/_data/site-config.json /app/data/content/_data/homepage.json"
+    # site-config.json/homepage.json are the v3 artifacts. compositions/*.json are
+    # the v4 composition artifacts (homepage, collection:default, posttype:default,
+    # pages.json = PUBLISHED standalone pages, preview-pages.json = page preview).
+    # ALL are consumed by Eleventy GLOBAL DATA (_data/*.mjs reading them via fs),
+    # which the --incremental watcher cannot attribute to any template — so a write
+    # does NOT propagate until a full rebuild. Restart the watcher on any change.
+    # (Adding compositions/*.json fixes composed-PAGE publish + preview propagation;
+    # previously only site-config.json/homepage.json were watched — Phase 7 gap.)
     SIG_LAST=""
     while true; do
-        SIG_NOW=$(stat -c %Y $WATCHED 2>/dev/null | tr '\n' ',')
+        SIG_NOW=$(stat -c %Y \
+            /app/data/content/_data/site-config.json \
+            /app/data/content/_data/homepage.json \
+            /app/data/content/_data/compositions/*.json \
+            2>/dev/null | tr '\n' ',')
         if [ -n "$SIG_LAST" ] && [ "$SIG_NOW" != "$SIG_LAST" ]; then
-            echo "==> [rebuild-trigger] site-config/homepage changed — restarting Eleventy watcher for a full rebuild"
+            echo "==> [rebuild-trigger] site-config/homepage/composition artifact changed — restarting Eleventy watcher for a full rebuild"
             # Sentinel: tells the watcher supervisor this exit is intentional,
             # so the Phase 5 crash wrapper doesn't report it as a failed build.
             touch /tmp/.eleventy-intentional-restart
