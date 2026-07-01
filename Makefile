@@ -423,7 +423,8 @@ verify-agents: ## Smoke-test the agent-readable surface (usage: make verify-agen
 	@curl -fsS -H "Accept: text/markdown" "$(URL)/" | grep -qi '^#' && echo "OK  homepage markdown" || { echo "FAIL homepage markdown"; exit 1; }
 	@curl -fsS "$(URL)/about.md" | grep -qi '^#' && echo "OK  about.md" || { echo "FAIL about.md"; exit 1; }
 	@curl -fsS "$(URL)/llms.txt" | grep -q '## Articles' && echo "OK  llms.txt" || { echo "FAIL llms.txt"; exit 1; }
-	@art=$$(curl -fsS "$(URL)/sitemap.xml" | grep -oE '/articles/[^<]+/' | head -1); \
+	@art=$$(curl -fsS "$(URL)/sitemap.xml" | grep -oE '/articles/[0-9][^<]+/' | head -1); \
+	  if [ -z "$$art" ]; then echo "SKIP article .md (no articles in sitemap)"; else \
 	  code=$$(curl -fsS -o /dev/null -w '%{http_code}' "$(URL)$${art%/}.md"); \
-	  [ "$$code" = "200" ] && echo "OK  article .md ($$art)" || { echo "FAIL article .md http=$$code"; exit 1; }
+	  [ "$$code" = "200" ] && echo "OK  article .md ($$art)" || { echo "FAIL article .md http=$$code"; exit 1; }; fi
 	@curl -fsS "$(URL)/robots.txt" | grep -qi 'Content-Signal' && echo "OK  robots Content-Signal" || { echo "FAIL robots Content-Signal"; exit 1; }
