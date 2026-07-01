@@ -705,22 +705,33 @@ http {
         # ── Markdown for Agents ────────────────────────────────────────
         # Serve clean Markdown for articles when requested via .md extension
         # AI agents (Claude Code, OpenCode, etc.) get raw content without HTML chrome
-        location ~ "^/articles/(.+)\.md$" {
-            try_files /articles/$1/index.md =404;
-
-            # Override MIME type — nginx would default to application/octet-stream
+        # Serve clean Markdown for articles AND notes (deep paths)
+        location ~ "^/(articles|notes)/(.+)\.md$" {
+            try_files /$1/$2/index.md =404;
             types { }
             default_type "text/markdown; charset=utf-8";
-
-            # Prevent search engines from indexing the Markdown version
             add_header X-Robots-Tag "noindex" always;
-            # Point to the canonical HTML version
-            add_header Link '<https://$proxy_host/articles/$1/>; rel="canonical"' always;
+            add_header Link '<https://$proxy_host/$1/$2/>; rel="canonical"' always;
         }
 
-        # Markdown requests for non-article content → 406 Not Acceptable
-        # Agents requesting .md for notes, bookmarks, etc. get a clear error
-        location ~ "^/(?!articles/)(.+)\.md$" {
+        # Synthesized page twins (exact paths)
+        location = /about.md {
+            try_files /about/index.md =404;
+            types { }
+            default_type "text/markdown; charset=utf-8";
+            add_header X-Robots-Tag "noindex" always;
+            add_header Link '<https://$proxy_host/about/>; rel="canonical"' always;
+        }
+        location = /index.md {
+            try_files /index.md =404;
+            types { }
+            default_type "text/markdown; charset=utf-8";
+            add_header X-Robots-Tag "noindex" always;
+            add_header Link '<https://$proxy_host/>; rel="canonical"' always;
+        }
+
+        # Markdown requests for any other content type → 406 Not Acceptable
+        location ~ "^/(?!articles/|notes/)(.+)\.md$" {
             default_type "text/plain; charset=utf-8";
             add_header Link '<https://$proxy_host/$1/>; rel="canonical"' always;
             return 406 "No Markdown version available for this content type.\nHTML version: https://$proxy_host/$1/\n";
@@ -766,9 +777,11 @@ http {
             if ($is_activitypub) {
                 proxy_pass http://127.0.0.1:8080;
             }
-            # Markdown content negotiation for articles
+            # Markdown content negotiation for articles, notes, /about, and homepage
             if ($wants_markdown) {
-                rewrite "^(/articles/.+?)/?$" "$1.md" last;
+                rewrite "^(/(?:articles|notes)/.+?)/?$" "$1.md" last;
+                rewrite "^/about/?$" /about.md last;
+                rewrite "^/$"        /index.md last;
             }
             try_files $uri $uri/ $uri.html =404;
         }
