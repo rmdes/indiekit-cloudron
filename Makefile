@@ -417,3 +417,13 @@ help:
 	@echo "  make use SITE=<name>            (optional default)"
 
 .DEFAULT_GOAL := help
+
+.PHONY: verify-agents
+verify-agents: ## Smoke-test the agent-readable surface (usage: make verify-agents URL=https://rmendes.net)
+	@curl -fsS -H "Accept: text/markdown" "$(URL)/" | grep -qi '^#' && echo "OK  homepage markdown" || { echo "FAIL homepage markdown"; exit 1; }
+	@curl -fsS "$(URL)/about.md" | grep -qi '^#' && echo "OK  about.md" || { echo "FAIL about.md"; exit 1; }
+	@curl -fsS "$(URL)/llms.txt" | grep -q '## Articles' && echo "OK  llms.txt" || { echo "FAIL llms.txt"; exit 1; }
+	@art=$$(curl -fsS "$(URL)/sitemap.xml" | grep -oE '/articles/[^<]+/' | head -1); \
+	  code=$$(curl -fsS -o /dev/null -w '%{http_code}' "$(URL)$${art%/}.md"); \
+	  [ "$$code" = "200" ] && echo "OK  article .md ($$art)" || { echo "FAIL article .md http=$$code"; exit 1; }
+	@curl -fsS "$(URL)/robots.txt" | grep -qi 'Content-Signal' && echo "OK  robots Content-Signal" || { echo "FAIL robots Content-Signal"; exit 1; }
