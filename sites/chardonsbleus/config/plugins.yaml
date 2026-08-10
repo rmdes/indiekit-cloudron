@@ -14,6 +14,9 @@ syndicators:
   mastodon:  { enabled: true }
   bluesky:   { enabled: true }
   linkedin:  { enabled: true }   # paired with linkedin-oauth endpoint below
+  # Pinned explicitly: the registry default flipped to true (for the public
+  # `default` image); without this pin it would silently turn on here.
+  indienews: { enabled: false }
 
 endpoints:
   webmention-io:     { enabled: true }

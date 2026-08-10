@@ -47,13 +47,13 @@ http {
         "~*text/markdown" 1;
     }
 
-    # Legacy URL redirects (optional - populated via redirects.map.rmendes)
+    # Legacy URL redirects (optional - populated via sites/<site>/config/redirects.map)
     map $uri $redirect_uri {
         default "";
         include /app/pkg/redirects.map;
     }
 
-    # Legacy URL redirects (optional - populated via old-blog-redirects.map.rmendes)
+    # Legacy URL redirects (optional - populated via sites/<site>/config/old-blog-redirects.map)
     map $uri $old_blog_redirect {
         default "";
         include /app/pkg/old-blog-redirects.map;

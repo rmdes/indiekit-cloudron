@@ -1,0 +1,17 @@
+# Public / generic site manifest.
+#
+# This overlay backs the PUBLIC image published by .github/workflows/build-image.yml
+# (docker.io + ghcr.io), for people who want to run Indiekit on Cloudron without
+# building from source. It must never depend on a private per-site overlay.
+#
+# Deliberately empty: with no deltas, every plugin falls back to its
+# `default_enabled` value in plugin-registry/plugin-registry.yaml, which is the
+# registry's own definition of a sane default deployment. To change what the
+# public image ships, change `default_enabled` in the registry — not here.
+#
+# Per-site identity/branding is NOT baked in; it comes from MongoDB at runtime
+# via @rmdes/indiekit-endpoint-site-config.
+
+post_types: {}
+syndicators: {}
+endpoints: {}

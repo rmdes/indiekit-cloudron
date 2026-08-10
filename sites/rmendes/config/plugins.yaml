@@ -52,3 +52,8 @@ endpoints:
     enabled: true
   activitypub:
     enabled: true
+  # Stripe donation campaigns — chardonsbleus only. Pinned explicitly because
+  # the registry default flipped to true (for the public `default` image);
+  # without this pin it would silently turn on here.
+  donation:
+    enabled: false
