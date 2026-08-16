@@ -12,8 +12,14 @@ ARG SITE
 RUN mkdir -p /app/pkg /app/code
 WORKDIR /app/code
 
-# Install Node.js 22 (required by Indiekit)
-ARG NODE_VERSION=22.22.0
+# Install Node.js (required by Indiekit)
+#
+# Indiekit declares `engines: { node: ">=24.17", npm: ">=11" }` across every
+# package as of v1.0.0-beta.28, and pins 24.17 in .nvmrc. Running 22.x produced
+# EBADENGINE warnings on install and would break as soon as upstream uses a
+# 24-only API. 24.19.0 is the current Krypton LTS and ships npm 11.17.0, so it
+# satisfies both constraints.
+ARG NODE_VERSION=24.19.0
 RUN mkdir -p /usr/local/node-$NODE_VERSION && \
     curl -L https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz | tar zxf - --strip-components 1 -C /usr/local/node-$NODE_VERSION
 ENV PATH="/usr/local/node-$NODE_VERSION/bin:$PATH"
