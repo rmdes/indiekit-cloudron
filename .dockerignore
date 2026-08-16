@@ -5,3 +5,8 @@ CHANGELOG.md
 screenshots/
 test/
 *.md
+
+# The theme's uploads directory is replaced by a symlink to /app/data/uploads
+# during the build (see the ln -s in the Dockerfile), so copying it in only
+# bakes ~176MB of dead weight into the COPY layer.
+eleventy-site/uploads

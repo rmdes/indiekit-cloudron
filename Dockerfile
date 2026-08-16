@@ -18,10 +18,20 @@ RUN mkdir -p /usr/local/node-$NODE_VERSION && \
     curl -L https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz | tar zxf - --strip-components 1 -C /usr/local/node-$NODE_VERSION
 ENV PATH="/usr/local/node-$NODE_VERSION/bin:$PATH"
 
-# Install build dependencies for native modules (sharp, bcrypt, etc.)
-RUN apt-get update && \
-    apt-get -y install build-essential python3 && \
-    rm -rf /var/cache/apt /var/lib/apt/lists
+# There is deliberately no `apt-get install build-essential python3` here.
+# cloudron/base:5.0.0 already ships build-essential, gcc and python3, so that
+# install was a no-op for tooling — but the `apt-get update` it required wrote
+# ~184MB of package indexes into the layer. The trailing
+# `rm -rf /var/cache/apt /var/lib/apt/lists` did not reclaim that: deleting
+# files later in the same RUN still leaves them in that layer's diff.
+#
+# The toolchain remains available from the base image, so plugins that do need
+# to compile still can. Nothing in the current tree does — every native
+# dependency ships prebuilt linux-x64 binaries (@img/sharp-linux-x64,
+# lightningcss-linux-x64-gnu, bcrypt/prebuilds/linux-x64) and node-gyp is absent.
+#
+# If a package is ever genuinely missing, install it and purge it in a SINGLE
+# RUN layer alongside the npm install — a purge in a later layer saves nothing.
 
 # Per-site package.json composed by scripts/compose-site.mjs from
 # plugin-registry.yaml + sites/${SITE}/config/plugins.yaml. The composed
