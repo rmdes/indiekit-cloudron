@@ -777,7 +777,7 @@ http {
         # actor document at / and AS2 representations of individual posts
         location / {
             # Proxy headers for AP content negotiation — these are inherited
-            # by the if ($is_activitypub) block below. Without them, the Host
+            # by the if ($serve_activitypub) block below. Without them, the Host
             # header defaults to 127.0.0.1:8080 and Indiekit constructs wrong URLs.
             proxy_set_header Host $proxy_host;
             proxy_set_header X-Real-IP $remote_addr;
