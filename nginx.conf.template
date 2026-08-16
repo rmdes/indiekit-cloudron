@@ -41,6 +41,27 @@ http {
         "~*application/ld\+json" 1;
     }
 
+    # Does the client accept HTML? Microformats consumers list activity+json
+    # alongside text/html, so matching activity+json alone hands them AS2 they
+    # cannot parse. IndieNews, for example, sends:
+    #   application/mf2+json, application/activity+json, text/html, ...
+    # and silently received AS2 instead of the post markup, so every submission
+    # failed with no_link_found. Real AS2 clients (Mastodon, Misskey) never
+    # send text/html at all, which is what makes this a safe discriminator.
+    # First matching regex wins, so the de-prioritised case is listed first:
+    # text/html;q=0 means "only if nothing else", not a preference for HTML.
+    map $http_accept $accepts_html {
+        default 0;
+        "~*text/html\s*;\s*q=0" 0;
+        "~*text/html" 1;
+    }
+
+    # Serve AS2 only to clients that cannot take HTML
+    map "$is_activitypub:$accepts_html" $serve_activitypub {
+        default 0;
+        "1:0" 1;
+    }
+
     # Markdown content negotiation — detect AI agents requesting text/markdown
     map $http_accept $wants_markdown {
         default 0;
@@ -764,17 +785,22 @@ http {
             proxy_set_header X-Forwarded-Proto https;
 
             # Cache AP content-negotiated responses (note/article JSON-LD)
-            # Only applies when proxy_pass fires (AP requests via $is_activitypub)
+            # Only applies when proxy_pass fires (AP requests via $serve_activitypub)
             # Non-AP requests go to try_files and never hit the proxy/cache
             proxy_cache activitypub;
             proxy_cache_valid 200 5m;
             proxy_cache_valid 404 1m;
-            proxy_cache_key "$request_uri|ap";
+            # Key on the negotiated representation, not the URI alone, so an AS2
+            # response can never be served to a client that asked for HTML
+            proxy_cache_key "$request_uri|ap|$serve_activitypub";
             proxy_cache_lock on;
             proxy_cache_use_stale error timeout updating http_500 http_502 http_503;
             proxy_cache_background_update on;
 
-            if ($is_activitypub) {
+            # NB: no add_header here — a location-level add_header would drop the
+            # inherited server-level security headers (CSP, X-Frame-Options, etc.)
+
+            if ($serve_activitypub) {
                 proxy_pass http://127.0.0.1:8080;
             }
             # Markdown content negotiation for articles, notes, /about, and homepage
