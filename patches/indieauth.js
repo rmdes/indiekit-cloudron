@@ -12,6 +12,9 @@ import {
 } from "./token.js";
 
 export const IndieAuth = class {
+  clientId;
+  redirectUri;
+
   constructor(options = {}) {
     this.codeVerifier = randomString(100);
     this.devMode = options.devMode;
@@ -88,7 +91,7 @@ export const IndieAuth = class {
         const { redirect } = request.query;
         this.redirectUri = redirect
           ? `${callbackUrl}?redirect=${redirect}`
-          : `${callbackUrl}`;
+          : callbackUrl;
 
         this.clientId = clientId;
         const state = generateState(this.clientId, this.iv);
@@ -119,11 +122,14 @@ export const IndieAuth = class {
         const { code, redirect, state } = request.query;
 
         // Check redirect is to a local path
-        // Patched: upstream regex /^\/[\w&/=?]*$/ rejects hyphens, dots, and
-        // percent-encoded characters — breaking paths like /auth/new-password
-        // or /files/upload-photos. Updated to allow all common URL characters.
+        // Patched: upstream regex /^\/[\w&/=?]*$/ rejects hyphens, dots and
+        // percent-encoding, breaking paths like /auth/new-password. Widened —
+        // but the `.` that makes those work also makes a protocol-relative URL
+        // like //evil.com match, which browsers resolve as https://evil.com.
+        // The lookahead rejects a second leading slash (or backslash) so this
+        // stays an open-redirect guard, not just a character filter.
         if (redirect) {
-          const validRedirect = redirect.match(/^\/[\w&/=?.\-~:%+@#]*$/);
+          const validRedirect = redirect.match(/^\/(?![/\\])[\w&/=?.\-~:%+@#]*$/);
 
           if (!validRedirect) {
             throw IndiekitError.forbidden(
