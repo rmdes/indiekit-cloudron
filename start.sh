@@ -589,7 +589,7 @@ EOF
 # them via Eleventy GLOBAL DATA (_data/site.js, _data/homepageConfig.js) using fs,
 # which Eleventy's --incremental watcher cannot attribute to any template — so an
 # admin save (branding aside, which uses the directly-watched theme.css) does NOT
-# propagate to rendered pages until a full rebuild. Watch these two files' mtimes
+# propagate to rendered pages until a full rebuild. Watch these files' CONTENT
 # and, on change, restart the Eleventy watcher; its next start does a full build
 # that re-runs global data and re-renders every page with the new config.
 (
@@ -605,13 +605,30 @@ EOF
     # _data/cv.js global (same fs-read pattern); since /cv is now a composed page
     # whose cv-* blocks read that global, a CV admin save also needs a full rebuild
     # to propagate (Phase 7a write-path move: was .indiekit/cv.json).
+    # SIGNATURE IS A CONTENT HASH, NOT mtime. At every container start the
+    # site-config and CV plugins rewrite these artifacts from MongoDB with
+    # byte-identical content. That bumps mtime, so the old `stat -c %Y` signature
+    # saw a "change" seconds after the first build and restarted the watcher —
+    # making EVERY deploy/restart do TWO full builds (verified 2026-08-20:
+    # rmendes ~160s x2; chardonsbleus 24.3s + 21.0s, 35.4s + 31.2s).
+    # Hashing content ignores that idempotent boot rewrite while still catching a
+    # real admin save. The `updatedAt` inside these files is the Mongo document's
+    # timestamp, not a generation time, so unchanged data hashes equal.
+    # md5sum prints "hash  path" per line, so add/delete/rename also move the
+    # signature. Total watched payload is ~55 KB, so this is cheap at 8s.
     SIG_LAST=""
     while true; do
-        SIG_NOW=$(stat -c %Y \
-            /app/data/content/_data/site-config.json \
-            /app/data/content/_data/homepage.json \
+        # Hash EVERY json artifact in _data, not a hand-listed subset. The old
+        # list missed loaded-plugins.json, block-catalog.json and categories.json,
+        # and any future plugin artifact would have been missed too. The theme
+        # watchIgnores this same set (eleventy.config.js), so this loop is the
+        # SINGLE owner of artifact-driven rebuilds — previously Eleventy's watcher
+        # and this trigger both fired on a real change and the pkill killed a
+        # rebuild already in flight. `*.tmp` staging files do not match `*.json`,
+        # so a half-written artifact can never enter the signature.
+        SIG_NOW=$(md5sum \
+            /app/data/content/_data/*.json \
             /app/data/content/_data/compositions/*.json \
-            /app/data/content/_data/cv.json \
             2>/dev/null | tr '\n' ',')
         if [ -n "$SIG_LAST" ] && [ "$SIG_NOW" != "$SIG_LAST" ]; then
             echo "==> [rebuild-trigger] site-config/homepage/composition artifact changed — restarting Eleventy watcher for a full rebuild"
