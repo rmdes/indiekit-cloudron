@@ -90,3 +90,7 @@ Thumbs.db
 FRONTEND_PLAN.md
 indieweb.txt
 .playwright-cli/
+
+# Local-only workspace artifacts
+Daily Notes/
+sites/indiekit-demo/
