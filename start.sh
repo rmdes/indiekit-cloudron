@@ -518,6 +518,28 @@ export NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
+# Purge eleventy-fetch cache entries whose body file is empty.
+# eleventy-fetch decides cache validity WITHOUT validating content: v4 checks the
+# metadata sidecar only, v5 adds existsSync — which a zero-byte file passes. It
+# then parses the body unguarded (v4 `require()`, v5 `JSON.parse`), so an empty
+# body throws "Unexpected end of JSON input" on every build and never re-fetches:
+# a permanent crash loop. Empty bodies come from its non-atomic writeFile, which
+# truncates to 0 before writing — die in that window and the body is left empty
+# while the metadata keeps its older timestamp.
+# Remove the metadata sidecar too: dropping only the body leaves the entry "valid"
+# and turns the parse error into a missing-module error.
+purge_empty_fetch_cache() {
+    local body count=0
+    for body in /app/data/cache/eleventy-fetch-*.json; do
+        [ -f "$body" ] || continue      # no matches: glob stays literal
+        [ -s "$body" ] && continue      # non-empty: keep
+        rm -f "$body" "${body%.json}"   # body + metadata sidecar
+        count=$((count + 1))
+    done
+    [ $count -gt 0 ] && echo "[eleventy-watcher] Purged $count corrupt (zero-byte) eleventy-fetch cache entries"
+    return 0
+}
+
 echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
@@ -554,6 +576,10 @@ echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
         # A fresh watcher start invalidates any pending sentinel — a config change
         # that touched it during the backoff window is picked up by this build anyway.
         rm -f /tmp/.eleventy-intentional-restart
+
+        # Runs on every iteration: pre-flight on the first pass, self-heal after a
+        # crash. Without it a single corrupt entry loops the watcher forever.
+        purge_empty_fetch_cache
 
         # Use absolute path — gosu's exec may not resolve relative paths from subshell cwd
         gosu cloudron:cloudron /app/pkg/eleventy-site/node_modules/.bin/eleventy \
