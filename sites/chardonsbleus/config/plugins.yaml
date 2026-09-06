@@ -36,5 +36,5 @@ endpoints:
   funkwhale:         { enabled: false }
   lastfm:            { enabled: false }
   podroll:           { enabled: false }
-  readlater:         { enabled: false }
+  readlater:         { enabled: true }
   bluesky-pds:       { enabled: false }
