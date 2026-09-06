@@ -193,6 +193,7 @@ export default {
     maxItemsPerFeed: 50,
     fetchTimeout: 10_000,
     maxConcurrentFetches: 3,
+    maxPostsPerCycle: 25,
   },
 
   // Webmention moderation endpoint
