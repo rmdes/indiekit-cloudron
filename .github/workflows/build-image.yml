@@ -14,10 +14,12 @@ env:
   REGISTRY_GHCR: ghcr.io
   REGISTRY_DH: docker.io
   IMAGE: rmdes/indiekit-cloudron
-  # The public image is built from the `default` site overlay
-  # (sites/default/config/), which carries no private per-site data and takes
-  # its plugin set from the registry's `default_enabled` flags. Never point
-  # this at rmendes/chardonsbleus — those are private deployment overlays.
+  # The public image is built from the generic overlay in examples/site-default/,
+  # which carries no private per-site data and takes its plugin set from the
+  # registry's `default_enabled` flags. sites/ is gitignored — an operator's own
+  # overlays live in a separate repository cloned there — so the build copies the
+  # example into sites/default/ first (see the step below). Never point this at a
+  # real deployment overlay.
   SITE: default
 
 jobs:
@@ -36,6 +38,15 @@ jobs:
 
       - name: Install compose script dependencies
         run: npm ci --prefix scripts
+
+      - name: Materialize the generic overlay
+        # sites/ is gitignored (operators clone their own overlay repository
+        # there), so a fresh checkout has no sites/default/. The Makefile reads
+        # sites/<site>/config/, so copy the tracked example into place first.
+        run: |
+          mkdir -p sites
+          cp -R examples/site-default sites/default
+          test -f sites/default/config/plugins.yaml
 
       - name: Compose plugin set from registry
         run: make compose SITE="$SITE"

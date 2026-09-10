@@ -22,10 +22,17 @@ env.sh.*
 # overrides/ directories named above were dropped in the May 2026 multi-site
 # refactor; per-site variance now comes from site-config at runtime.
 #
-# Now — the overlays live in their own repository, cloned into sites/. They
-# are the operator's own configuration (site identities, routes, secrets) and
-# have no place in a package other people deploy. Nothing under sites/ is
-# tracked here; see examples/site-default/ for the shape a site config takes.
+# Now — the operator's own overlays live in their own repository, cloned into
+# sites/. They are that operator's configuration (site identities, routes,
+# secrets) and have no place in a package other people deploy.
+#
+# The public image still needs a generic overlay to build from. That one lives
+# in examples/site-default/ (tracked), and .github/workflows/build-image.yml
+# copies it into sites/default/ before running `make compose SITE=default`.
+# It carries no private data — its plugins.yaml is deliberately empty so every
+# plugin falls back to `default_enabled` in the registry — and it doubles as
+# the reference for the shape a site config takes.
+# See examples/site-default/README.md.
 sites/
 
 # The active-site marker (per machine, not committed).
