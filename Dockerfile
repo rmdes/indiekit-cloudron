@@ -128,6 +128,9 @@ COPY sites/${SITE}/.compiled/indiekit.config.js /app/pkg/indiekit.config.js
 # to Eleventy as _data/loaded-plugins.json so theme templates can conditionally
 # render plugin-specific UI via `{% if loadedPlugins.cv %}…{% endif %}`.
 COPY sites/${SITE}/.compiled/plugin-loadout.json /app/pkg/loaded-plugins.json
-COPY nginx.conf redirects.map old-blog-redirects.map /app/pkg/
+# nginx-common-*.conf hold the blocks every site shares (maps, security
+# headers). They are included by nginx.conf rather than copied into it, so a
+# change lands on every site at once instead of needing to be repeated.
+COPY nginx.conf nginx-common-http.conf nginx-common-headers.conf redirects.map old-blog-redirects.map /app/pkg/
 
 CMD [ "/app/pkg/start.sh" ]
