@@ -11,11 +11,21 @@ env.sh.*
 # Build artifacts (eleventy-site is a submodule)
 # _site and .cache are in submodule's .gitignore
 
-# Per-site overlays live in their own repository, cloned into sites/.
-# They are the operator's own configuration — site identities, routes and
-# secrets — and have no place in a package other people deploy. Nothing
-# under sites/ is tracked here; see examples/site-default/ for the shape a
-# site config takes.
+# Per-site overlays (one directory per deployment).
+# Each contains config/, optional theme/, optional overrides/.
+# See README "Multi-site deployment" for the convention.
+#
+# History — until 2026-09-10 this was a wholesale ignore EXCEPT the Plan B
+# source-of-truth files (no secrets): a negation chain re-included only the
+# directories needed to reach plugins.yaml and indiekit.config.js, while
+# env.sh, nginx.conf and the *.map files stayed out. The per-site theme/ and
+# overrides/ directories named above were dropped in the May 2026 multi-site
+# refactor; per-site variance now comes from site-config at runtime.
+#
+# Now — the overlays live in their own repository, cloned into sites/. They
+# are the operator's own configuration (site identities, routes, secrets) and
+# have no place in a package other people deploy. Nothing under sites/ is
+# tracked here; see examples/site-default/ for the shape a site config takes.
 sites/
 
 # The active-site marker (per machine, not committed).
