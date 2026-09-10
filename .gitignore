@@ -11,13 +11,6 @@ env.sh.*
 # Build artifacts (eleventy-site is a submodule)
 # _site and .cache are in submodule's .gitignore
 
-# Per-site overlays (one directory per deployment).
-# Each contains config/, optional theme/, optional overrides/.
-# See README "Multi-site deployment" for the convention.
-#
-# Wholesale ignore EXCEPT Plan B source-of-truth files (no secrets).
-# The negation chain re-includes only the directories needed to reach
-# allowed files — env.sh, nginx.conf, redirects.map stay out.
 # Per-site overlays live in their own repository, cloned into sites/.
 # They are the operator's own configuration — site identities, routes and
 # secrets — and have no place in a package other people deploy. Nothing
