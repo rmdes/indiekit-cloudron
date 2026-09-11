@@ -78,6 +78,17 @@ make push-env SITE=<site> APP=<app>   # push it to a running app
 cloudron restart --app <app>
 ```
 
+A few non-secret settings also live here because the theme reads them at build
+time rather than from MongoDB:
+
+| Variable | Effect |
+|---|---|
+| `AUTHOR_AVATAR` | h-card photo, and the avatar on generated OpenGraph cards. A path (`/images/me.jpg`) or same-origin URL; `.jpg`/`.png` only for the OG card. **Leave empty and the cards carry no avatar** — which is what a site without one wants. |
+| `OG_CARD_HIDE` | Comma-separated list of OG card elements to drop: `badge`, `date`, `avatar`, `description`, `siteName`. Empty (the default) shows all of them; the title is always shown. |
+
+Everything else about the card — site name, description, accent colour — comes
+from the Site-Config admin UI, so one image serves visually distinct sites.
+
 ## Building
 
 ```bash
