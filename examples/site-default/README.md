@@ -83,7 +83,7 @@ time rather than from MongoDB:
 
 | Variable | Effect |
 |---|---|
-| `AUTHOR_AVATAR` | h-card photo, and the avatar on generated OpenGraph cards. A path (`/images/me.jpg`) or same-origin URL; `.jpg`/`.png` only for the OG card. **Leave empty and the cards carry no avatar** — which is what a site without one wants. |
+| `AUTHOR_AVATAR` | h-card photo, and the avatar on generated OpenGraph cards. Point it at **this site's own media** — `/media/images/me.jpg`, i.e. `/app/data/content/media/images/me.jpg` — never at a path under the shared theme's `images/`, which is copied to every deployment built from that theme. `.jpg`/`.png` only for the OG card. Leave it empty and both fall back to a neutral silhouette. |
 | `OG_CARD_HIDE` | Comma-separated list of OG card elements to drop: `badge`, `date`, `avatar`, `description`, `siteName`. Empty (the default) shows all of them; the title is always shown. |
 
 Everything else about the card — site name, description, accent colour — comes
