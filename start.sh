@@ -511,21 +511,26 @@ fi
 # Without this, post-build allocations stay resident because watch mode has no
 # allocation pressure to trigger GC naturally.
 # --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
-# Heap at 2560 — the watcher's full build holds every rendered page in memory
-# (watch mode retains them for incremental diffing). A healthy full build of
-# ~3,400 pages logs heap≈1280MB, so 2560 leaves ~2x headroom.
+# Heap at 3328.
 #
-# Briefly raised to 3328 on 2026-09-12 during a crash loop, then put back: the
-# loop was a retention bug (meta descriptions were substrings of whole rendered
-# pages, pinning ~764MB — see lib/description.mjs), not a genuine need for more
-# heap. Restoring 2560 keeps the cap doing its job as an alarm; raising it would
-# only have muffled the next leak of that class.
+# READ THIS BEFORE LOWERING IT. The number that matters is the build's PEAK, not
+# the heap it settles to. `.eleventy-mem.log` records `post-pagefind` AFTER the
+# forced GC at the end of the build — a healthy full build settles to ~1280MB —
+# but the peak during template rendering is ~2800MB, because watch mode holds
+# every rendered page for incremental diffing. Comparing the settled figure to
+# the cap says 2560 is generous; comparing the peak says it is below the floor.
+# 2560 was under the peak this file itself documented, and every full build
+# OOMed at ~2500MB, ~150s in, in a restart loop (2026-09-12, twice — the second
+# time because the settled figure was mistaken for the peak).
 #
-# Diagnosing a future OOM: /app/data/.eleventy-mem.log records heap at each
-# phase. A run of `before-build` entries with no matching `after-build` IS a
-# crash loop, and the site then serves whatever the dying build wrote — so new
-# posts 404 while listings still render.
-export NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
+# A crash loop here is silent from outside: the dying build has already written
+# some pages, so listings render while posts reached late in the run 404.
+# Diagnose with `.eleventy-mem.log` — a run of `before-build` entries with no
+# matching `after-build` IS a crash loop.
+#
+# Budget of the 5120MB cgroup: watcher 3328 + Indiekit ~600 + og-cli batch ~460
+# + nginx/redis ~30 = ~4400, leaving ~700MB margin.
+export NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
