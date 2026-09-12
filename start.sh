@@ -511,10 +511,19 @@ fi
 # Without this, post-build allocations stay resident because watch mode has no
 # allocation pressure to trigger GC naturally.
 # --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
-# Heap at 2560 — watcher's initial full build peaks above 2304MB V8 heap (3,400
-# pages in memory). Needs 3.5GB+ cgroup: watcher ~2800 peak + Indiekit ~600 = ~3400.
-# Steady state after build is ~2300MB total.
-export NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
+# Heap at 3328 — RAISED from 2560 on 2026-09-12 after a crash loop: every full
+# build OOMed at ~2506MB heap, 150s in, ~40 times in a row. The site then serves
+# whatever the dying build managed to write, so new posts 404 (their page is
+# never reached) while listings still render from the previous build.
+#
+# 2560 was always marginal — the note below it admits a ~2800MB peak against a
+# 2560 cap. Meanwhile the cgroup is 5120MB and sat at ~2400MB with 2.7GB idle,
+# so the binding constraint was V8's cap, not the container.
+# Budget at 3328: watcher 3328 + Indiekit ~600 + og-cli batch ~460 + nginx/redis
+# ~30 = ~4400 of 5120, leaving ~700MB margin.
+# Watch `[mem] after-build` in /app/data/.eleventy-mem.log — a healthy full
+# build logged heap=1283/1468MB on 2026-09-11.
+export NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
 # Syndication webhook — Eleventy triggers syndication immediately after incremental builds
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
