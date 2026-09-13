@@ -556,7 +556,7 @@ purge_empty_fetch_cache() {
     return 0
 }
 
-echo "==> Starting Eleventy watcher for auto-rebuild (heap: 2560MB, expose-gc)"
+echo "==> Starting Eleventy watcher for auto-rebuild (heap: 3328MB, expose-gc)"
 (
     set +e  # Disable errexit so the retry loop survives crashes
     cd /app/pkg/eleventy-site

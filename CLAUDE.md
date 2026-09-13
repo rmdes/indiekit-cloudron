@@ -539,15 +539,17 @@ The syndication and webmention background processes generate JWT tokens. The ori
 
 ## Memory Tuning
 
-The Cloudron container has a 3.5 GB (3,584 MB) cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs).
+The Cloudron container has a **5 GB (5,120 MB)** cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs). Measured 2026-09-12; the earlier 3.5 GB figure in this file was stale after the app was raised to 5 GB.
+
+Budget at that limit: watcher 3328 + Indiekit ~600 + og-cli batch ~460 + nginx/redis ~30 = ~4400, leaving ~700 MB margin.
 
 ### CRITICAL: Node.js Heap Caps
 
 | Process | Heap Cap | Set In | Why |
 |---------|----------|--------|-----|
-| **Indiekit** | 1536MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=1536"`) | Raised from 768 MB after observing growth in steady-state RSS as more plugins (ActivityPub, Microsub, Conversations) were added. Mar 2026 heap snapshot showed 137 MB; current 30+ plugin load runs ~300 MB RSS. 1536 MB cap leaves ample headroom without crowding Eleventy's 2560 MB watcher. |
+| **Indiekit** | 1536MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=1536"`) | Raised from 768 MB after observing growth in steady-state RSS as more plugins (ActivityPub, Microsub, Conversations) were added. Mar 2026 heap snapshot showed 137 MB; current 30+ plugin load runs ~300 MB RSS. 1536 MB cap leaves ample headroom without crowding Eleventy's 3328 MB watcher. |
 | **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
-| **Eleventy watcher** | 2560MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2560 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | Watcher's initial full build peaks above 2304 MB V8 heap (3,400+ pages in memory). GC hook returns memory to OS after build. |
+| **Eleventy watcher** | 3328MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | **Raised from 2560 on 2026-09-12 after a 26-hour crash loop.** The full build PEAKS at ~2800 MB (watch mode holds every rendered page for incremental diffing), so 2560 was below the floor. **Do not lower this from `.eleventy-mem.log`'s `post-pagefind` figure (~1280 MB)** — that is the heap AFTER the forced GC at the END of the build, not the peak; misreading it as the peak is what caused the second outage that day. GC hook returns memory to OS after build. |
 | **og-cli** | 512MB | `eleventy.config.js` (`--max-old-space-size=512 --expose-gc`) | V8 heap only uses ~22 MB; cap is safety margin. WASM native memory is the real consumer (not limited by this flag). |
 
 ### Post-Build GC
