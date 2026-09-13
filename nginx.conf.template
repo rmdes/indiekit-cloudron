@@ -447,6 +447,34 @@ http {
         #     alias /app/data/site/.well-known/keybase.txt;
         # }
 
+        # Build health for EXTERNAL uptime monitoring.
+        #
+        # A crashed Eleventy watcher is invisible from outside: nginx keeps
+        # serving the last good build's pages with 200s, so a "is the site up?"
+        # check stays green while new posts 404. This file is the only outward
+        # signal. Written by the theme's eleventy.after (state ok) and by
+        # start.sh's supervisor on watcher crash (state failed).
+        #
+        # ALERT ON THE BODY, NOT THE STATUS: this returns 200 either way.
+        # Match on `"state": "ok"` being absent, and on the age of `lastOkAt` —
+        # the worst failure is the one where nothing writes any more, which no
+        # stored staleness number could report.
+        #
+        # no-store because a cached health check is a lie.
+        location = /health/build.json {
+            alias /app/data/site/health/build.json;
+            default_type application/json;
+            add_header Cache-Control "no-store" always;
+            add_header Access-Control-Allow-Origin "*" always;
+            # Absent before the first build completes — say so in the same shape.
+            error_page 404 = @build_health_unknown;
+        }
+        location @build_health_unknown {
+            default_type application/json;
+            add_header Cache-Control "no-store" always;
+            return 200 '{"state":"unknown","detail":"no build has completed since this container started"}';
+        }
+
         # NodeInfo endpoint (used by Fedify for federation discovery)
         location /nodeinfo/ {
             proxy_pass http://127.0.0.1:8080;

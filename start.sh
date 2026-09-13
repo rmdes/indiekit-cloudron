@@ -622,6 +622,25 @@ EOF
             # chown so the cloudron-side writer never hits an ownership surprise.
             chown cloudron:cloudron /app/data/build-status.json 2>/dev/null || true
             echo "[eleventy-watcher] Crash captured in build-status.json"
+
+            # Public health projection (/health/build.json) — the ONLY outward
+            # signal that this site has stopped building. nginx keeps serving
+            # the last good build's pages with 200s, so uptime monitoring stays
+            # green through a crash loop; on 2026-09-11 that hid one for 26
+            # hours while every new post 404'd.
+            #
+            # node, not a heredoc: this write must MERGE (preserve lastOkAt,
+            # increment consecutiveFailures), which a dumb heredoc cannot do.
+            # Same module the theme's success path uses, so the two writers
+            # cannot disagree about the shape. Never fails the supervisor.
+            gosu cloudron:cloudron node -e '
+              import("/app/pkg/eleventy-site/lib/build-health.mjs")
+                .then(({ writeBuildHealth }) => writeBuildHealth({
+                  state: "failed",
+                  lastBuildAt: new Date().toISOString(),
+                }))
+                .catch((error) => console.warn("[build-health] " + error.message));
+            ' 2>/dev/null || echo "[eleventy-watcher] build-health write skipped"
         fi
     done
 ) &
