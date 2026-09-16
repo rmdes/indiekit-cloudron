@@ -462,7 +462,7 @@ http {
         #
         # no-store because a cached health check is a lie.
         location = /health/build.json {
-            alias /app/data/site/health/build.json;
+            alias /app/data/health/build.json;
             default_type application/json;
             add_header Cache-Control "no-store" always;
             add_header Access-Control-Allow-Origin "*" always;

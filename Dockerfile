@@ -120,7 +120,7 @@ COPY migrated-content /app/pkg/migrated-content
 
 # Copy config files
 # Base files are templates in repo, personal overrides applied via Makefile before build
-COPY start.sh syndicate-backlog.sh indiekit.config.js.template nginx.conf.template /app/pkg/
+COPY start.sh build-loop.sh syndicate-backlog.sh indiekit.config.js.template nginx.conf.template /app/pkg/
 # Per-site indiekit.config.js composed by scripts/compose-site.mjs.
 # start.sh copies this from /app/pkg/ to /app/data/config/ at container start.
 COPY sites/${SITE}/.compiled/indiekit.config.js /app/pkg/indiekit.config.js

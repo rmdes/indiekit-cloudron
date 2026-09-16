@@ -428,11 +428,24 @@ echo "==> Old site continues serving while new build runs"
 # exceeds the 2048MB heap within the 3072MB cgroup limit).
 # If you need to force a fresh fetch, delete specific cache files manually.
 
-# Initial build DISABLED — consistently OOMs because Eleventy (3.9GB peak RSS from
-# V8 heap + Sharp buffers + OG WASM) + Indiekit (~370MB) exceeds the 4GB cgroup.
-# The watcher always succeeds because it starts after the initial build process exits,
-# freeing all memory. The old release serves during the watcher's ~5 min full build.
-# To re-enable: uncomment the block below and comment the INITIAL_BUILD_OK=false line.
+# Initial build DISABLED — build-loop.sh owns the first build now.
+#
+# This block is the remains of the atomic release-swap design (4f37a16), disabled
+# on 2026-04-04 (913fc7b). Its stated reason — "Eleventy 3.9GB peak + Indiekit
+# exceeds the 4GB cgroup" — is stale in BOTH halves: the cgroup is 5120MB, and
+# that peak included the OG excerpt retention fixed on 2026-09-12 (V8 SlicedString
+# pinning whole pages; 764MB -> 1MB measured). A one-shot full build now peaks at
+# ~2.1GB. Keeping it disabled is still correct, but for a different reason:
+# build-loop.sh already does a full build at container start, so re-enabling this
+# would just build the site twice per boot.
+#
+# Restoring the SWAP itself (build to a fresh dir, atomic symlink rename) is a
+# real option and is tracked separately. Two things must be solved first, both
+# verified 2026-09-16: `cp -al` seeding is UNSAFE because Eleventy writes with
+# fs.writeFile, which truncates in place and therefore mutates the live release
+# through the hardlink; and a virgin release dir makes eleventy-img regenerate
+# every image, so img/ and og/ want to move to persistent storage served by an
+# nginx alias before a swap is worth it.
 INITIAL_BUILD_OK=false
 cd /app/pkg/eleventy-site
 export DEBUG="Eleventy:Benchmark*"
@@ -494,220 +507,70 @@ else
     echo "==> Initial build skipped/failed, keeping previous release: ${CURRENT_RELEASE}"
     # Clean up the failed release directory (if one was created)
     if [ -n "${NEW_RELEASE:-}" ]; then rm -rf "${NEW_RELEASE}"; fi
-    # Note: readiness signal is NOT created here — the watcher will do a full
+    # Note: readiness signal is NOT created here — build-loop.sh runs a full
     # build on start and the eleventy.after hook creates the signal file when
     # that build completes. This ensures plugins don't start until the system
-    # is truly stable (watcher running + build finished).
+    # is truly stable (build finished).
 fi
 
-# Start Eleventy in watch+incremental mode to rebuild only affected pages on content changes
-# Wrapped in a supervisor loop that restarts on crash with exponential backoff
-# The watcher writes to /app/data/site (current release via symlink)
-# Watcher does a full build on first start, then switches to incremental mode.
-# Needs same heap as initial build for that first pass. Runs after initial build
-# completes, so never concurrent — 2048MB is safe within 3072MB cgroup.
-# --expose-gc allows eleventy.config.js to call global.gc() after each build,
-# forcing V8 to release freed heap pages back to the OS via madvise(MADV_DONTNEED).
-# Without this, post-build allocations stay resident because watch mode has no
-# allocation pressure to trigger GC naturally.
-# --heapsnapshot-signal=SIGUSR2: for on-demand heap snapshot analysis.
-# Heap at 3328.
+# Node options for the Eleventy build process (build-loop.sh spawns it).
 #
-# READ THIS BEFORE LOWERING IT. The number that matters is the build's PEAK, not
-# the heap it settles to. `.eleventy-mem.log` records `post-pagefind` AFTER the
-# forced GC at the end of the build — a healthy full build settles to ~1280MB —
-# but the peak during template rendering is ~2800MB, because watch mode holds
-# every rendered page for incremental diffing. Comparing the settled figure to
-# the cap says 2560 is generous; comparing the peak says it is below the floor.
-# 2560 was under the peak this file itself documented, and every full build
-# OOMed at ~2500MB, ~150s in, in a restart loop (2026-09-12, twice — the second
-# time because the settled figure was mistaken for the peak).
+# --expose-gc lets eleventy.config.js call global.gc() after each build, forcing
+# V8 to hand freed pages back to the OS via madvise(MADV_DONTNEED). Less critical
+# now that every build is a process that exits — exiting returns everything —
+# but the post-build heap log it enables is still the main memory diagnostic.
+# --heapsnapshot-signal=SIGUSR2: on-demand heap snapshot analysis.
 #
-# A crash loop here is silent from outside: the dying build has already written
-# some pages, so listings render while posts reached late in the run 404.
-# Diagnose with `.eleventy-mem.log` — a run of `before-build` entries with no
-# matching `after-build` IS a crash loop.
+# HEAP AT 3328 — READ THIS BEFORE CHANGING IT.
 #
-# Budget of the 5120MB cgroup: watcher 3328 + Indiekit ~600 + og-cli batch ~460
+# This number has been edited twelve times across eight months, and twice in one
+# day on 2026-09-12 it was LOWERED to 2560 by comparing the wrong two figures,
+# taking the site down both times. The trap: `.eleventy-mem.log` records
+# `post-pagefind` AFTER the forced GC at the END of a build (~1280MB under the
+# old watcher), which looks like plenty of headroom. The number that binds is
+# the PEAK during template rendering.
+#
+# What changed: the long-lived `--watch --incremental` watcher held every
+# rendered page in memory for incremental diffing — 707MB of large_object_space
+# in the Mar 2026 heap snapshot — and its peak climbed with each successive
+# build (2076MB median on a process's 1st build, 3491MB p90 by its 10th).
+# One-shot full builds retain none of that. Measured on a 3,443-page build:
+# heap 552/801MB, versus 1292/1466MB for the same site under the watcher.
+#
+# So 3328 is now generous rather than marginal. It is left high on purpose: a
+# cap costs nothing until it binds, and the cost of getting it wrong downward is
+# a silent outage. Do not "reclaim" it.
+#
+# Budget of the 5120MB cgroup: build 3328 + Indiekit ~600 + og-cli batch ~460
 # + nginx/redis ~30 = ~4400, leaving ~700MB margin.
 export NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
-# Syndication webhook — Eleventy triggers syndication immediately after incremental builds
+# Syndication webhook — the theme's eleventy.after hook calls this once a build
+# completes, cutting syndication latency from the poller's ~2min to ~5s.
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"
 export SYNDICATE_SECRET_FILE="/app/data/config/.secret"
-# Purge eleventy-fetch cache entries whose body file is empty.
-# eleventy-fetch decides cache validity WITHOUT validating content: v4 checks the
-# metadata sidecar only, v5 adds existsSync — which a zero-byte file passes. It
-# then parses the body unguarded (v4 `require()`, v5 `JSON.parse`), so an empty
-# body throws "Unexpected end of JSON input" on every build and never re-fetches:
-# a permanent crash loop. Empty bodies come from its non-atomic writeFile, which
-# truncates to 0 before writing — die in that window and the body is left empty
-# while the metadata keeps its older timestamp.
-# Remove the metadata sidecar too: dropping only the body leaves the entry "valid"
-# and turns the parse error into a missing-module error.
-purge_empty_fetch_cache() {
-    local body count=0
-    for body in /app/data/cache/eleventy-fetch-*.json; do
-        [ -f "$body" ] || continue      # no matches: glob stays literal
-        [ -s "$body" ] && continue      # non-empty: keep
-        rm -f "$body" "${body%.json}"   # body + metadata sidecar
-        count=$((count + 1))
-    done
-    [ $count -gt 0 ] && echo "[eleventy-watcher] Purged $count corrupt (zero-byte) eleventy-fetch cache entries"
-    return 0
-}
-
-echo "==> Starting Eleventy watcher for auto-rebuild (heap: 3328MB, expose-gc)"
-(
-    set +e  # Disable errexit so the retry loop survives crashes
-    cd /app/pkg/eleventy-site
-    RESTART_COUNT=0
-    BACKOFF=5
-    MAX_BACKOFF=300
-    LAST_START=0
-
-    while true; do
-        NOW=$(date +%s)
-
-        # Reset backoff if the watcher ran for at least 5 minutes (healthy run)
-        if [ $LAST_START -gt 0 ] && [ $((NOW - LAST_START)) -ge 300 ]; then
-            RESTART_COUNT=0
-            BACKOFF=5
-        fi
-
-        LAST_START=$NOW
-        RESTART_COUNT=$((RESTART_COUNT + 1))
-
-        if [ $RESTART_COUNT -eq 1 ]; then
-            echo "[eleventy-watcher] Starting watcher"
-        else
-            echo "[eleventy-watcher] Restarting watcher (attempt $RESTART_COUNT, backoff ${BACKOFF}s)"
-            sleep $BACKOFF
-            # Exponential backoff: 5, 10, 20, 40, 80, 160, 300 (capped)
-            BACKOFF=$((BACKOFF * 2))
-            if [ $BACKOFF -gt $MAX_BACKOFF ]; then
-                BACKOFF=$MAX_BACKOFF
-            fi
-        fi
-
-        # A fresh watcher start invalidates any pending sentinel — a config change
-        # that touched it during the backoff window is picked up by this build anyway.
-        rm -f /tmp/.eleventy-intentional-restart
-
-        # Runs on every iteration: pre-flight on the first pass, self-heal after a
-        # crash. Without it a single corrupt entry loops the watcher forever.
-        purge_empty_fetch_cache
-
-        # Use absolute path — gosu's exec may not resolve relative paths from subshell cwd
-        gosu cloudron:cloudron /app/pkg/eleventy-site/node_modules/.bin/eleventy \
-            --watch --incremental --output=/app/data/site
-        EXIT_CODE=$?
-        echo "[eleventy-watcher] Watcher exited with code $EXIT_CODE at $(date '+%Y-%m-%d %H:%M:%S')"
-        # Consume the sentinel on every exit (even exit 0); combined with the
-        # clear before each watcher start, a stale sentinel can never mask a
-        # later real crash.
-        INTENTIONAL=false
-        if [ -f /tmp/.eleventy-intentional-restart ]; then
-            rm -f /tmp/.eleventy-intentional-restart
-            INTENTIONAL=true
-            echo "[eleventy-watcher] Intentional restart (config change) — not a failure"
-        fi
-        if [ $EXIT_CODE -ne 0 ] && [ "$INTENTIONAL" != "true" ]; then
-            # Crash: surface it to the admin UI via build-status (Phase 5).
-            # jq isn't guaranteed; write with a heredoc + date.
-            cat > /app/data/build-status.json.tmp <<EOF
-{"state":"failed","error":"watcher exited with code ${EXIT_CODE}","finishedAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
-EOF
-            mv /app/data/build-status.json.tmp /app/data/build-status.json || true
-            # Supervisor runs as root; Eleventy's ok/building writer runs as cloudron.
-            # chown so the cloudron-side writer never hits an ownership surprise.
-            chown cloudron:cloudron /app/data/build-status.json 2>/dev/null || true
-            echo "[eleventy-watcher] Crash captured in build-status.json"
-
-            # Public health projection (/health/build.json) — the ONLY outward
-            # signal that this site has stopped building. nginx keeps serving
-            # the last good build's pages with 200s, so uptime monitoring stays
-            # green through a crash loop; on 2026-09-11 that hid one for 26
-            # hours while every new post 404'd.
-            #
-            # node, not a heredoc: this write must MERGE (preserve lastOkAt,
-            # increment consecutiveFailures), which a dumb heredoc cannot do.
-            # Same module the theme's success path uses, so the two writers
-            # cannot disagree about the shape. Never fails the supervisor.
-            gosu cloudron:cloudron node -e '
-              import("/app/pkg/eleventy-site/lib/build-health.mjs")
-                .then(({ writeBuildHealth }) => writeBuildHealth({
-                  state: "failed",
-                  lastBuildAt: new Date().toISOString(),
-                }))
-                .catch((error) => console.warn("[build-health] " + error.message));
-            ' 2>/dev/null || echo "[eleventy-watcher] build-health write skipped"
-        fi
-    done
-) &
-
-# ─── Full-rebuild trigger on site-config / homepage changes ───
-# The site-config admin writes site-config.json and homepage.json. The theme reads
-# them via Eleventy GLOBAL DATA (_data/site.js, _data/homepageConfig.js) using fs,
-# which Eleventy's --incremental watcher cannot attribute to any template — so an
-# admin save (branding aside, which uses the directly-watched theme.css) does NOT
-# propagate to rendered pages until a full rebuild. Watch these files' CONTENT
-# and, on change, restart the Eleventy watcher; its next start does a full build
-# that re-runs global data and re-renders every page with the new config.
-(
-    # site-config.json/homepage.json are the v3 artifacts. compositions/*.json are
-    # the v4 composition artifacts (homepage, collection:default, posttype:default,
-    # pages.json = PUBLISHED standalone pages, preview-pages.json = page preview).
-    # ALL are consumed by Eleventy GLOBAL DATA (_data/*.mjs reading them via fs),
-    # which the --incremental watcher cannot attribute to any template — so a write
-    # does NOT propagate until a full rebuild. Restart the watcher on any change.
-    # (Adding compositions/*.json fixes composed-PAGE publish + preview propagation;
-    # previously only site-config.json/homepage.json were watched — Phase 7 gap.)
-    # cv.json is written by @rmdes/indiekit-endpoint-cv and read by the theme's
-    # _data/cv.js global (same fs-read pattern); since /cv is now a composed page
-    # whose cv-* blocks read that global, a CV admin save also needs a full rebuild
-    # to propagate (Phase 7a write-path move: was .indiekit/cv.json).
-    # SIGNATURE IS A CONTENT HASH, NOT mtime. At every container start the
-    # site-config and CV plugins rewrite these artifacts from MongoDB with
-    # byte-identical content. That bumps mtime, so the old `stat -c %Y` signature
-    # saw a "change" seconds after the first build and restarted the watcher —
-    # making EVERY deploy/restart do TWO full builds (verified 2026-08-20:
-    # rmendes ~160s x2; chardonsbleus 24.3s + 21.0s, 35.4s + 31.2s).
-    # Hashing content ignores that idempotent boot rewrite while still catching a
-    # real admin save. The `updatedAt` inside these files is the Mongo document's
-    # timestamp, not a generation time, so unchanged data hashes equal.
-    # md5sum prints "hash  path" per line, so add/delete/rename also move the
-    # signature. Total watched payload is ~55 KB, so this is cheap at 8s.
-    SIG_LAST=""
-    while true; do
-        # Hash EVERY json artifact in _data, not a hand-listed subset. The old
-        # list missed loaded-plugins.json, block-catalog.json and categories.json,
-        # and any future plugin artifact would have been missed too. The theme
-        # watchIgnores this same set (eleventy.config.js), so this loop is the
-        # SINGLE owner of artifact-driven rebuilds — previously Eleventy's watcher
-        # and this trigger both fired on a real change and the pkill killed a
-        # rebuild already in flight. `*.tmp` staging files do not match `*.json`,
-        # so a half-written artifact can never enter the signature.
-        SIG_NOW=$(md5sum \
-            /app/data/content/_data/*.json \
-            /app/data/content/_data/compositions/*.json \
-            2>/dev/null | tr '\n' ',')
-        if [ -n "$SIG_LAST" ] && [ "$SIG_NOW" != "$SIG_LAST" ]; then
-            echo "==> [rebuild-trigger] site-config/homepage/composition artifact changed — restarting Eleventy watcher for a full rebuild"
-            # Sentinel: tells the watcher supervisor this exit is intentional,
-            # so the Phase 5 crash wrapper doesn't report it as a failed build.
-            touch /tmp/.eleventy-intentional-restart
-            pkill -f "node_modules/.bin/eleventy" 2>/dev/null || true
-        fi
-        SIG_LAST="$SIG_NOW"
-        sleep 8
-    done
-) &
+# ─── Eleventy build loop ───
+# Replaces `eleventy --watch --incremental`, which ran as ONE long-lived process
+# for the life of the container and was the direct cause of three separate
+# classes of failure: silently dropped posts (an upstream crash that leaves the
+# watcher alive), memory that grows with the number of incremental builds a
+# process has done, and a supervisor that could only see a process that EXITED.
+# build-loop.sh carries the full reasoning and the measurements.
+#
+# It also absorbs the old rebuild-trigger loop: site-config/composition artifact
+# changes are one of its two change detectors rather than a separate watcher
+# that pkill'd a build already in flight.
+echo "==> Starting Eleventy build loop"
+/app/pkg/build-loop.sh &
 
 # ─── Stuck-build watchdog ───
-# The supervisor above only reacts to the watcher PROCESS EXITING. Eleventy
-# catches build errors in watch mode and keeps watching, so a build that throws
-# leaves a live, idle, healthy-looking process: `Wrote 0 files in 6.02 seconds`
-# then `Watching…`. On 2026-09-15 rmendes sat like that for 24 HOURS — six
+# Second line of defence. The build loop above notices a build that EXITS
+# non-zero; this notices one that never exits at all. The failure it was written
+# for was the --watch --incremental watcher, which caught its own build errors
+# and kept watching: `Wrote 0 files in 6.02 seconds` then `Watching…`, a live
+# idle process with nothing wrong from outside. One-shot builds make that
+# specific trap far less likely, but a build that hangs (a wedged network read,
+# a Sharp deadlock) would still stall the loop forever with no signal.
+# On 2026-09-15 rmendes sat in the watcher version of this for 24 HOURS — six
 # builds started, none finished, five posts written to content/ that 404'd.
 # consecutiveFailures stayed 0 (nothing crashed) and /health/build.json still
 # said `ok` from the previous day. Nothing in the container noticed.
@@ -740,7 +603,7 @@ EOF
               if (!r.overdue) return;
               console.log(
                 `[build-watchdog] Build ${r.status?.buildId ?? "?"} has been "building" for ` +
-                `${r.elapsedSeconds}s (threshold ${r.thresholdSeconds}s) — watcher presumed wedged`,
+                `${r.elapsedSeconds}s (threshold ${r.thresholdSeconds}s) — build presumed wedged`,
               );
               process.exit(10);
             })
