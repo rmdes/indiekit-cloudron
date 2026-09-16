@@ -703,6 +703,56 @@ EOF
     done
 ) &
 
+# ─── Stuck-build watchdog ───
+# The supervisor above only reacts to the watcher PROCESS EXITING. Eleventy
+# catches build errors in watch mode and keeps watching, so a build that throws
+# leaves a live, idle, healthy-looking process: `Wrote 0 files in 6.02 seconds`
+# then `Watching…`. On 2026-09-15 rmendes sat like that for 24 HOURS — six
+# builds started, none finished, five posts written to content/ that 404'd.
+# consecutiveFailures stayed 0 (nothing crashed) and /health/build.json still
+# said `ok` from the previous day. Nothing in the container noticed.
+#
+# Root cause is upstream (@11ty/eleventy 3.1.2 AND 3.1.6): the synchronous
+# TemplateContent.isFileRelevantToThisTemplate() dereferences `this.engine` on
+# a Template that has not been async-initialised and throws `templateRender has
+# not yet initialized`. This does NOT fix that — it bounds the damage from ~24h
+# to ~15min while the build architecture is reworked.
+#
+# The overdue THRESHOLD lives in the theme (lib/build-watchdog.mjs), not here:
+# it is max(4 x lastOkDurationSeconds, 900s), self-calibrating per site and
+# unit-tested against the real build-duration distribution. Deliberately far
+# more conservative than site-config's isStuckBuild() banner rule
+# (max(2 x lastOk, 120s)) — that draws a warning, this KILLS A BUILD, and
+# rmendes's full builds run to 461s. Exit code 10 = overdue.
+#
+# NO intentional-restart sentinel is set: a wedge IS a failure and must reach
+# build-status.json and /health/build.json through the supervisor's crash
+# branch, or the outage stays invisible to monitoring a second time.
+(
+    set +e  # the probe exits 10 on purpose; errexit would kill this loop
+    WATCHDOG_INTERVAL=60
+    while true; do
+        sleep $WATCHDOG_INTERVAL
+        gosu cloudron:cloudron node -e '
+          import("/app/pkg/eleventy-site/lib/build-watchdog.mjs")
+            .then(({ inspectBuildStatus }) => {
+              const r = inspectBuildStatus();
+              if (!r.overdue) return;
+              console.log(
+                `[build-watchdog] Build ${r.status?.buildId ?? "?"} has been "building" for ` +
+                `${r.elapsedSeconds}s (threshold ${r.thresholdSeconds}s) — watcher presumed wedged`,
+              );
+              process.exit(10);
+            })
+            .catch((error) => console.warn("[build-watchdog] " + error.message));
+        '
+        if [ $? -eq 10 ]; then
+            echo "[build-watchdog] Restarting Eleventy watcher to recover"
+            pkill -f "node_modules/.bin/eleventy" 2>/dev/null || true
+        fi
+    done
+) &
+
 # Memory monitor — logs RSS for all Node.js processes every 10 minutes.
 # Helps detect slow memory leaks over days. Output appears in `cloudron logs`.
 # To analyze: cloudron logs --app rmendes.net | grep '\[mem-monitor\]'
