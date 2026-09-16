@@ -11,17 +11,25 @@
 #    reaches a Template that has not been async-initialised — which is exactly
 #    what a file created since the last glob is. The build writes 0 files, the
 #    process STAYS ALIVE, and the post that triggered it is never published.
-#    Reproduced deterministically; no open upstream issue. Full builds cannot hit
-#    it: isFileRelevantToThisTemplate() returns true on its second line when
-#    there is no incremental file, never reaching the getter that throws.
+#    Reproduced deterministically. FIXED ON UPSTREAM main (4.0.0-alpha.10 adds
+#    `await tmpl.asyncTemplateInitialization()` before the check) but NOT
+#    backported to 3.x, and 3.1.6 is npm `latest`. Full builds cannot hit it:
+#    isFileRelevantToThisTemplate() returns true on its second line when there is
+#    no incremental file, never reaching the getter that throws.
 #
-# 2. MEMORY. Measured from .eleventy-mem.log (950 completed builds): the FIRST
-#    full build in a fresh process peaks at 2076MB median; the tenth incremental
-#    build in the same process peaks at 2779MB median / 3491MB p90 / 3766MB max.
+# 2. MEMORY. From .eleventy-mem.log (950 completed builds), peak RSS grows
+#    monotonically with how many builds a process has done: 2076MB median on a
+#    process's 1st build, 2779MB median / 3491MB p90 / 3766MB max by its 10th.
 #    --incremental was adopted in 270f6ec explicitly to save memory and it costs
-#    memory, monotonically with process age. Twelve separate commits raised or
-#    lowered --max-old-space-size chasing that curve. A process that exits gives
-#    every byte back.
+#    memory. Twelve separate commits moved the heap cap chasing that curve.
+#
+#    BE HONEST ABOUT THE SIZE OF THIS WIN. That 2076MB median is across ALL
+#    first-builds in the log, most of them short or aborted. Measured on the real
+#    3,443-page site at the 2026-09-16 cutover: one-shot full build peaked at
+#    3034MB RSS / 1781MB heap, versus 3080MB RSS / 2274MB heap for the watcher's
+#    own build half an hour earlier. RSS is the SAME; the win is ~500MB of heap
+#    peak, which is what the heap cap actually governs. Real, but modest. The
+#    correctness and support arguments below carry this decision, not this one.
 #
 # 3. SUPPORT. Upstream documents --incremental as "to improve build times when
 #    doing local development" and lists server-side incremental as an
@@ -32,10 +40,10 @@
 #    in development — it runs chokidar spawning clean one-shot builds, which is
 #    what this file does.
 #
-# The cost is wall-clock: full builds run 154s median where a healthy
-# incremental ran 51s. Rebuilds are asynchronous and the previous output keeps
-# serving throughout, so that time is invisible to readers — unlike a dropped
-# post, which is permanent.
+# The cost is wall-clock, and it is the honest headline: a full build of rmendes
+# takes 388s where a healthy incremental took 51s. Rebuilds are asynchronous and
+# the previous output keeps serving throughout, so that time is invisible to
+# readers — unlike a dropped post, which is permanent.
 #
 # Inherits its environment (NODE_OPTIONS, SITE_URL, secrets) from start.sh,
 # which backgrounds this script after exporting them.

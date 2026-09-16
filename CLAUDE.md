@@ -424,10 +424,12 @@ reasoning and measurements in `build-loop.sh`'s header):
   on a content file created since the last glob; the build writes 0 files, the
   watcher STAYS ALIVE, and the post is never published. Unreported upstream bug,
   present in 3.1.2 and 3.1.6, reproduced deterministically. Full builds are immune.
-- **Memory.** A fresh process's full build peaks at 2076 MB median; the tenth
-  incremental build in the same process peaks at 2779 MB median / 3491 MB p90.
-  `--incremental` was adopted to save memory and cost it, monotonically with
-  process age — which is what twelve `--max-old-space-size` edits were chasing.
+- **Memory.** Peak RSS grows with how many builds a process has done: 2076 MB
+  median on its 1st, 2779 MB median / 3491 MB p90 by its 10th — which is what
+  twelve heap-cap edits were chasing. **But the win is modest, not dramatic:**
+  measured on the real site at cutover, a one-shot full build peaked at 3034 MB
+  RSS / 1781 MB heap versus the watcher's 3080 MB / 2274 MB. RSS is the same;
+  ~500 MB less heap peak. Do not re-argue this decision on memory alone.
 - **Support.** Upstream documents `--incremental` as a local-development feature
   and lists server-side incremental as unimplemented (#2775); Nunjucks includes
   have no incremental dependency graph at all (#3804, OPEN).
@@ -882,7 +884,7 @@ The default `@11ty/eleventy/html-transformer` transform is overridden with a pre
 |------------|------|-------|-------|
 | Cold build (empty caches) | ~20 min | 3,400+ | First deploy or after wiping `.cache/`. Regenerates all 2,400+ OG images, fetches all unfurl URLs, all API data files |
 | Warm build (caches populated) | ~3 min | 3,400+ | Normal container restart. OG manifest skips existing images, unfurl/data caches hit disk |
-| Rebuild on content change | ~154s median (266s p90) | 3,400+ | Every build is a FULL build in a fresh process since 2026-09-16. Debounced 15s so a burst of posts costs one build. The previous output keeps serving throughout |
+| Rebuild on content change | ~390s (measured 388.6s on rmendes) | 3,443 | Every build is a FULL build in a fresh process since 2026-09-16. Debounced 15s so a burst of posts costs one build. The previous output keeps serving throughout |
 
 **What makes a build "cold":** The OG manifest (`.cache/og/manifest.json`), unfurl cache (`.cache/unfurl/`), and eleventy-fetch cache (`.cache/eleventy-fetch/`) are empty. This happens on first deploy or if `/app/data/cache/` is wiped. The symlink `.cache → /app/data/cache` persists these across container restarts, so normal restarts are warm builds.
 
