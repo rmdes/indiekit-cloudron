@@ -582,7 +582,7 @@ echo "==> Starting Eleventy build loop"
 # to ~15min while the build architecture is reworked.
 #
 # The overdue THRESHOLD lives in the theme (lib/build-watchdog.mjs), not here:
-# it is max(4 x lastOkDurationSeconds, 900s), self-calibrating per site and
+# it is max(4 x lastOkDurationSeconds, 1800s), self-calibrating per site and
 # unit-tested against the real build-duration distribution. Deliberately far
 # more conservative than site-config's isStuckBuild() banner rule
 # (max(2 x lastOk, 120s)) — that draws a warning, this KILLS A BUILD, and
