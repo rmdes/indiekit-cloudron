@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with the Indiekit Cloudr
 
 ## Project Overview
 
-This is a Cloudron-packaged version of Indiekit (IndieWeb server) combined with an Eleventy static site generator. The app runs three processes: Indiekit (Node.js), Eleventy (file watcher), and nginx (static file serving/proxying).
+This is a Cloudron-packaged version of Indiekit (IndieWeb server) combined with an Eleventy static site generator. The app runs three processes: Indiekit (Node.js), a build loop that runs one-shot Eleventy builds on content change, and nginx (static file serving/proxying).
 
 **Target Site:** https://rmendes.net
 
@@ -286,7 +286,7 @@ if ($wants_markdown) {   # $wants_markdown set from Accept: text/markdown
 **Verify:** `make verify-agents URL=https://rmendes.net` (homepage markdown, `/about.md`, `/llms.txt`, an article `.md`, robots `Content-Signal`).
 
 **Deploy gotchas** (see the reference doc + `documentation-central/plans/2026-07-01-llms-txt-implementation.md`):
-- The theme's `eleventy.after` generator is gated on a **one-shot flag, not `!incremental`** (the watcher's first full build reports `incremental=true`).
+- The theme's `eleventy.after` generator is gated on a **one-shot module flag**. Historically this mattered because the watcher's first full build reported `incremental=true`; under one-shot builds every build is its process's first, so the flag simply means "once per build". Do NOT re-gate anything on `incremental` — it is now always `false`, which is what silently disabled the syndication webhook until 2026-09-16.
 - Synthesized `/about.md`/`/index.md` are only written when the HTML page exists — a site without an About page correctly gets neither (no orphan `/about/index.md` → no 403).
 - `build-status.json` is in persistent `/app/data`, so it shows the PRIOR build's `state:ok` right after `cloudron update` — confirm a rebuild by a `building`→`ok` transition or advanced output mtime, not the instantaneous value.
 
@@ -313,9 +313,9 @@ cloudron exec --app rmendes.net
 
 ### Checking if the Eleventy Build Completed
 
-> **The atomic release swap is currently DISABLED** (see "Build Architecture" below). In `start.sh` the initial-build-to-new-release block is commented out (`INITIAL_BUILD_OK=false`, lines ~431–496) because the Eleventy initial build (~3.9 GB peak RSS) + Indiekit exceeds the 4 GB cgroup → OOM. Instead the Eleventy **watcher** does a full build **in place** into the current release dir (`eleventy --watch --incremental --output=/app/data/site`). Consequences: **`readlink /app/data/site` does NOT change after a deploy**, there is **NO `==> Swapped to release` log line**, and no new per-deploy `releases/` dir is created. Do not wait for a swap — it will never come.
+> **The atomic release swap is currently DISABLED** (see "Build Architecture" below), and since 2026-09-16 there is **no Eleventy watcher either** — `build-loop.sh` runs one-shot full `eleventy` builds **in place** into the current release dir. Consequences: **`readlink /app/data/site` does NOT change after a deploy**, there is **NO `==> Swapped to release` log line**, and no new per-deploy `releases/` dir is created. Do not wait for a swap — it will never come.
 
-After `cloudron update` or `cloudron restart`, the watcher rebuilds `/app/data/site` in place over ~5 min. **`cloudron update` reporting "App is updated" + a passing health check does NOT mean the new build succeeded** — a build can fail and silently leave stale/partial content in place. Confirm the build with these signals:
+After `cloudron update` or `cloudron restart`, the build loop rebuilds `/app/data/site` in place over ~3-5 min (it always builds once at container start, whatever the change detector says — a deploy changes the theme, not the content). **`cloudron update` reporting "App is updated" + a passing health check does NOT mean the new build succeeded** — a build can fail and silently leave stale/partial content in place. Confirm the build with these signals:
 
 ```bash
 # 1. Build completion — the authoritative signal (no fatal, all files written)
@@ -327,14 +327,14 @@ cloudron exec --app rmendes.net -- cat /app/data/build-status.json
 # 3. Any fatal that FAILED the build (a failed build serves stale/partial in place)
 cloudron logs --app rmendes.net 2>&1 | grep -iE "Eleventy Fatal Error|Having trouble writing"
 
-# 4. Watcher state: high CPU = still building, low CPU = idle-watching (build done)
-cloudron exec --app rmendes.net -- bash -c 'ps -o pcpu,etime,args -C node | grep "eleventy.*--watch"'
+# 4. Build state: an eleventy process exists = building; none = idle between builds
+cloudron exec --app rmendes.net -- bash -c 'ps -o pcpu,etime,args -C node | grep "[e]leventy"'
 
 # 5. Public smoke test — the ultimate confirmation the new build is live
 curl -sL -o /dev/null -w "%{http_code}\n" https://rmendes.net/
 ```
 
-**Build phases (in order, all inside the watcher's first full build):**
+**Build phases (in order — every build is a full build now):**
 1. OG image generation (~2 min, batch spawning)
 2. Template rendering (3,400+ pages)
 3. Pagefind indexing + `eleventy.after` hooks (orphan prunes, `build-status.json`, `.indiekit-ready` signal)
@@ -347,7 +347,7 @@ curl -sL -o /dev/null -w "%{http_code}\n" https://rmendes.net/
 **How to tell the build SUCCEEDED:**
 - `[11ty] Wrote N files` (N ≈ full page count) with no `Eleventy Fatal Error`
 - `/app/data/build-status.json` shows `"state":"ok"`
-- The watcher process drops to low CPU (idle-watching)
+- `[build-loop] Build finished in Ns` appears and no `eleventy` process remains (each build exits)
 - The public URL serves the expected content
 
 ## Architecture
@@ -387,12 +387,12 @@ Runtime (writable, backed up):
 ### Process Architecture
 
 1. **nginx (port 3000)** - Entry point, serves static files from `/app/data/site` (symlink), proxies to Indiekit
-2. **Eleventy (watcher)** - Rebuilds site incrementally when content changes
+2. **Build loop (`build-loop.sh`)** - Polls for content changes and runs ONE full `eleventy` build per debounced batch, each in a fresh process that exits
 3. **Indiekit (port 8080)** - Handles Micropub, authentication, admin UI
 4. **Syndication poller** - Background process polling `/syndicate` every 2 minutes
 5. **Webmention sender** - Background process polling `/webmention-sender` every 5 minutes
 
-### Build Architecture (in-place watcher; atomic swap currently DISABLED)
+### Build Architecture (one-shot in-place builds; atomic swap currently DISABLED)
 
 The documented zero-downtime atomic-swap flow is **retained but commented out** in `start.sh` (lines ~431–496, with `INITIAL_BUILD_OK=false` hardcoded). It is **abandoned, not just memory-blocked** — see below.
 
@@ -404,23 +404,38 @@ The documented zero-downtime atomic-swap flow is **retained but commented out** 
 >
 > **To ever revisit the swap:** pagefind must run out-of-process / memory-capped AND the build must be deferred until Indiekit settles (at which point it effectively IS the watcher). Not worth it for the zero-downtime gain given the in-place build works. **Keep the app at ≥5 GB regardless** — it removed the standing OOM risk on the in-place build (now ~67–75% of 5120 MB vs 99.9% at 3840 MB).
 
-**Actual current flow on container restart:**
+**Actual current flow on container restart (since 2026-09-16):**
 
 ```
 nginx starts → /app/data/site → symlink to the SAME (reused) release dir → serves existing content
 Indiekit starts → ready on :8080
-Eleventy WATCHER starts → eleventy --watch --incremental --output=/app/data/site
-  → first pass is a FULL build, written IN PLACE into the current release dir (~5 min)
+build-loop.sh starts → ALWAYS builds once: eleventy --output=/app/data/site
+  → a FULL build, written IN PLACE into the current release dir (~3-5 min warm)
   → eleventy.after writes build-status.json + creates /app/data/.indiekit-ready
-  → then incremental rebuilds on content changes
+  → then polls every 10s; on a change, debounces 15s and runs ANOTHER full build
+    in a FRESH process that exits when done
 (no new release dir per deploy; no `mv -T` swap; `readlink /app/data/site` unchanged)
 ```
+
+**Why one-shot instead of `--watch --incremental`** (changed 2026-09-16 — full
+reasoning and measurements in `build-loop.sh`'s header):
+- **Correctness.** `--incremental` throws `templateRender has not yet initialized`
+  on a content file created since the last glob; the build writes 0 files, the
+  watcher STAYS ALIVE, and the post is never published. Unreported upstream bug,
+  present in 3.1.2 and 3.1.6, reproduced deterministically. Full builds are immune.
+- **Memory.** A fresh process's full build peaks at 2076 MB median; the tenth
+  incremental build in the same process peaks at 2779 MB median / 3491 MB p90.
+  `--incremental` was adopted to save memory and cost it, monotonically with
+  process age — which is what twelve `--max-old-space-size` edits were chasing.
+- **Support.** Upstream documents `--incremental` as a local-development feature
+  and lists server-side incremental as unimplemented (#2775); Nunjucks includes
+  have no incremental dependency graph at all (#3804, OPEN).
 
 The release dir got its timestamp name from a **one-time** migration (start.sh ~line 400, converting an old real `/app/data/site` dir to a symlink) — it is NOT recreated per deploy.
 
 **Visitors experience:** during the ~5 min in-place full build, already-rebuilt pages show new content and not-yet-rebuilt pages show their previous content (no 404s). NOT an atomic swap — there is a window of mixed old/new pages.
 
-**If the build fails:** the watcher supervisor captures the crash in `/app/data/build-status.json` (`"state":"failed"`) and restarts the watcher with exponential backoff. The in-place dir keeps serving whatever was last written (stale/partial) until a build succeeds. This is why a crashing build is a **silent stale-serve** — always verify build completion (see "Checking if the Eleventy Build Completed").
+**If the build fails:** build-loop.sh captures the failure in `/app/data/build-status.json` (`"state":"failed"`) plus `/app/data/health/build.json`, and retries with exponential backoff (30s → 600s). It does NOT advance its scan marker on failure, so the changes that triggered the failed build are retried rather than lost. A build that HANGS rather than exits is caught separately by the stuck-build watchdog (`lib/build-watchdog.mjs`), which kills it past `max(4 × lastOkDurationSeconds, 900s)`. The in-place dir keeps serving whatever was last written (stale/partial) until a build succeeds. This is why a crashing build is a **silent stale-serve** — always verify build completion (see "Checking if the Eleventy Build Completed").
 
 **Rollback:** deploys reuse one release dir (no per-deploy timestamped releases), so rollback is by **redeploying a previous image** (`make deploy` after checking out the prior code/submodule), NOT by repointing the symlink.
 
@@ -434,14 +449,14 @@ All `@rmdes/*` plugins with background tasks use `@rmdes/indiekit-startup-gate` 
 start.sh removes /app/data/.indiekit-ready    ← BEFORE Indiekit starts (line ~195)
 Indiekit starts → plugins call waitForReady() → file not found → wait
 Initial build is DISABLED (INITIAL_BUILD_OK=false) → start.sh skips the swap/signal branch
-Eleventy WATCHER starts → does a full in-place build
+build-loop.sh starts → runs a full in-place build immediately
 Eleventy's eleventy.after hook creates the signal  ← the live path
 Plugins detect signal → start background tasks
 ```
 
 **Key implementation details:**
 - `rm -f /app/data/.indiekit-ready` MUST be before the `node ... indiekit ... serve` line in start.sh
-- Because the initial build + swap branch is disabled, `.indiekit-ready` is ALWAYS created by `eleventy.config.js`'s `eleventy.after` hook when the watcher's first full build completes (NOT by start.sh's `touch` in the disabled swap-success branch)
+- Because the initial build + swap branch is disabled, `.indiekit-ready` is ALWAYS created by `eleventy.config.js`'s `eleventy.after` hook when build-loop.sh's container-start build completes (NOT by start.sh's `touch` in the disabled swap-success branch)
 - The signal uses `!existsSync()` guard so it's only created once per boot
 
 **When adding a new plugin to the Dockerfile:** If the plugin has background tasks, verify it uses `@rmdes/indiekit-startup-gate`. See workspace CLAUDE.md for the full pattern.
@@ -541,7 +556,7 @@ The syndication and webmention background processes generate JWT tokens. The ori
 
 The Cloudron container has a **5 GB (5,120 MB)** cgroup memory limit shared across all processes (Indiekit, Eleventy, nginx, Redis, background jobs). Measured 2026-09-12; the earlier 3.5 GB figure in this file was stale after the app was raised to 5 GB.
 
-Budget at that limit: watcher 3328 + Indiekit ~600 + og-cli batch ~460 + nginx/redis ~30 = ~4400, leaving ~700 MB margin.
+Budget at that limit: build 3328 + Indiekit ~600 + og-cli batch ~460 + nginx/redis ~30 = ~4400, leaving ~700 MB margin.
 
 ### CRITICAL: Node.js Heap Caps
 
@@ -549,7 +564,7 @@ Budget at that limit: watcher 3328 + Indiekit ~600 + og-cli batch ~460 + nginx/r
 |---------|----------|--------|-----|
 | **Indiekit** | 1536MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=1536"`) | Raised from 768 MB after observing growth in steady-state RSS as more plugins (ActivityPub, Microsub, Conversations) were added. Mar 2026 heap snapshot showed 137 MB; current 30+ plugin load runs ~300 MB RSS. 1536 MB cap leaves ample headroom without crowding Eleventy's 3328 MB watcher. |
 | **Eleventy initial build** | 2048MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=2048"`) | Full build processes all posts, OG images, and Pagefind index |
-| **Eleventy watcher** | 3328MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | **Raised from 2560 on 2026-09-12 after a 26-hour crash loop.** The full build PEAKS at ~2800 MB (watch mode holds every rendered page for incremental diffing), so 2560 was below the floor. **Do not lower this from `.eleventy-mem.log`'s `post-pagefind` figure (~1280 MB)** — that is the heap AFTER the forced GC at the END of the build, not the peak; misreading it as the peak is what caused the second outage that day. GC hook returns memory to OS after build. |
+| **Eleventy build** | 3328MB | `start.sh` (`NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"`) | **Raised from 2560 on 2026-09-12 after a 26-hour crash loop**, when builds ran in a long-lived watcher whose peak climbed with process age and whose watch mode held every rendered page for incremental diffing (707 MB of large_object_space). One-shot builds retain none of that: measured 552/801 MB heap versus 1292/1466 MB for the same site under the watcher, so 3328 is now generous rather than marginal. **It is left high deliberately** — a cap costs nothing until it binds, and this number has been edited twelve times, twice taking the site down by being lowered from `.eleventy-mem.log`'s post-GC `post-pagefind` figure (~1280 MB) instead of the peak. Do not reclaim it. |
 | **og-cli** | 512MB | `eleventy.config.js` (`--max-old-space-size=512 --expose-gc`) | V8 heap only uses ~22 MB; cap is safety margin. WASM native memory is the real consumer (not limited by this flag). |
 
 ### Post-Build GC
@@ -866,7 +881,7 @@ The default `@11ty/eleventy/html-transformer` transform is overridden with a pre
 |------------|------|-------|-------|
 | Cold build (empty caches) | ~20 min | 3,400+ | First deploy or after wiping `.cache/`. Regenerates all 2,400+ OG images, fetches all unfurl URLs, all API data files |
 | Warm build (caches populated) | ~3 min | 3,400+ | Normal container restart. OG manifest skips existing images, unfurl/data caches hit disk |
-| Incremental rebuild (watcher) | ~25s | 1,047 written, 2,392 skipped | Triggered by content changes. Data files cached 4h in watch mode |
+| Rebuild on content change | ~154s median (266s p90) | 3,400+ | Every build is a FULL build in a fresh process since 2026-09-16. Debounced 15s so a burst of posts costs one build. The previous output keeps serving throughout |
 
 **What makes a build "cold":** The OG manifest (`.cache/og/manifest.json`), unfurl cache (`.cache/unfurl/`), and eleventy-fetch cache (`.cache/eleventy-fetch/`) are empty. This happens on first deploy or if `/app/data/cache/` is wiped. The symlink `.cache → /app/data/cache` persists these across container restarts, so normal restarts are warm builds.
 
