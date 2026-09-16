@@ -328,7 +328,8 @@ cloudron exec --app rmendes.net -- cat /app/data/build-status.json
 cloudron logs --app rmendes.net 2>&1 | grep -iE "Eleventy Fatal Error|Having trouble writing"
 
 # 4. Build state: an eleventy process exists = building; none = idle between builds
-cloudron exec --app rmendes.net -- bash -c 'ps -o pcpu,etime,args -C node | grep "[e]leventy"'
+#    (`ps -C node` matches NOTHING in this container — use ps aux)
+cloudron exec --app rmendes.net -- sh -c 'ps aux | grep "[e]leventy --output"'
 
 # 5. Public smoke test — the ultimate confirmation the new build is live
 curl -sL -o /dev/null -w "%{http_code}\n" https://rmendes.net/
