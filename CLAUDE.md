@@ -313,7 +313,7 @@ cloudron exec --app rmendes.net
 
 ### Checking if the Eleventy Build Completed
 
-> **The atomic release swap is currently DISABLED** (see "Build Architecture" below), and since 2026-09-16 there is **no Eleventy watcher either** — `build-loop.sh` runs one-shot full `eleventy` builds **in place** into the current release dir. Consequences: **`readlink /app/data/site` does NOT change after a deploy**, there is **NO `==> Swapped to release` log line**, and no new per-deploy `releases/` dir is created. Do not wait for a swap — it will never come.
+> **The atomic release swap is ENABLED again since 2026-09-22**, and there is no Eleventy watcher since 2026-09-16. `build-loop.sh` runs one-shot full `eleventy` builds into a FRESH `/app/data/releases/<ts>/` and renames the `/app/data/site` symlink over on success. So `readlink /app/data/site` DOES change on every successful build, and `[build-loop] Swapped to release <ts>` is the authoritative completion signal. The previous release serves, complete and self-consistent, for the whole build.
 
 After `cloudron update` or `cloudron restart`, the build loop rebuilds `/app/data/site` in place over ~3-5 min (it always builds once at container start, whatever the change detector says — a deploy changes the theme, not the content). **`cloudron update` reporting "App is updated" + a passing health check does NOT mean the new build succeeded** — a build can fail and silently leave stale/partial content in place. Confirm the build with these signals:
 
@@ -343,7 +343,7 @@ curl -sL -o /dev/null -w "%{http_code}\n" https://rmendes.net/
 **Timing reference:**
 - Warm build (caches populated): ~3-5 min
 - Cold build (empty caches): ~20 min
-- During the in-place build, pages are overwritten progressively — not-yet-rebuilt pages keep serving their previous content (no 404s), but it is NOT a clean atomic swap.
+- Visitors see the PREVIOUS release, unchanged and self-consistent, until the swap instant. No mixed old/new window. (Before 2026-09-22 builds overwrote in place in map order, so the homepage could list a post minutes before that post's own index.html existed — a listing linking to a 404.)
 
 **How to tell the build SUCCEEDED:**
 - `[11ty] Wrote N files` (N ≈ full page count) with no `Eleventy Fatal Error`
@@ -379,7 +379,9 @@ Runtime (writable, backed up):
 │   ├── content/                  # User posts (notes/, articles/, etc.)
 │   ├── releases/                 # Eleventy build output dir(s)
 │   │   └── 1708400000/           # The single reused release dir (built IN PLACE; not recreated per deploy)
-│   ├── site -> releases/1708400000  # SYMLINK; target is rebuilt in place (atomic swap currently disabled)
+│   ├── site -> releases/<ts>       # SYMLINK, renamed over on every successful build (atomic swap)
+├── og/                          # OG cards, served by nginx alias (outside the release)
+├── img/                         # responsive images, served by nginx alias (outside the release)
 │   ├── cache/                    # Eleventy cache
 │   ├── images/                   # User-uploaded images
 │   └── uploads/                  # Media uploads
@@ -393,15 +395,22 @@ Runtime (writable, backed up):
 4. **Syndication poller** - Background process polling `/syndicate` every 2 minutes
 5. **Webmention sender** - Background process polling `/webmention-sender` every 5 minutes
 
-### Build Architecture (one-shot in-place builds; atomic swap currently DISABLED)
+### Build Architecture (one-shot builds + atomic release swap)
 
-The documented zero-downtime atomic-swap flow is **retained but commented out** in `start.sh` (lines ~431–496, with `INITIAL_BUILD_OK=false` hardcoded). It is **abandoned, not just memory-blocked** — see below.
+The atomic swap is **LIVE since 2026-09-22**, implemented in `build-loop.sh`, not in `start.sh`.
+
+Do not confuse the two things that used to be one. `start.sh` still has its own
+initial-build-and-swap block commented out (`INITIAL_BUILD_OK=false`), and that is
+still correct: `build-loop.sh` performs the container-start build, so re-enabling
+the start.sh block would simply build the site twice per boot. The MEMORY finding
+below is about that start.sh block running concurrently with Indiekit's startup
+spike — it does not apply to build-loop.sh, which builds after Indiekit settles.
 
 > **MEASURED twice 2026-06-20 — re-enabling OOMs even with more RAM; DO NOT re-enable without a deeper fix:**
 > - At the old **3840 MB** cgroup: the swap's separate initial build climbed to **~3839 MB (99.9%)** and swap-thrashed under the OOM ceiling — never swapped, never cleanly failed over (13+ min).
 > - After raising the app to **5120 MB**: the initial build peaked ~3401 MB, then **EXPLODED to 5118 MB and cgroup-OOM-killed** (kernel OOM, no heap snapshot). It grew to FILL the new memory.
 >
-> **Root cause (why more RAM doesn't help):** the *initial* build has a late-phase memory explosion — **pagefind** indexing 3,400 pages uses native memory OUTSIDE V8's heap (uncapped by `--max-old-space-size`) — AND it runs CONCURRENTLY with Indiekit's startup spike (30+ plugins, ActivityPub/Fedify, Mongo). The **in-place watcher build avoids both** (runs after Indiekit settles). The safe fallback (`INITIAL_BUILD_OK=false` → in-place watcher) kept the site serving throughout both tests. The "~3,260 MB peak" figures elsewhere in this doc are stale.
+> **Root cause (why more RAM didn't help THAT block):** a build started from `start.sh` runs CONCURRENTLY with Indiekit's startup spike (30+ plugins, ActivityPub/Fedify, Mongo), and pagefind's indexing uses native memory outside V8's heap, uncapped by the heap flag. `build-loop.sh` avoids both by building after Indiekit settles — which is why the swap works there and did not there. The "~3,260 MB peak" figures elsewhere in this doc are stale; measured 2026-09-16, a full build peaks ~3034 MB RSS.
 >
 > **To ever revisit the swap:** pagefind must run out-of-process / memory-capped AND the build must be deferred until Indiekit settles (at which point it effectively IS the watcher). Not worth it for the zero-downtime gain given the in-place build works. **Keep the app at ≥5 GB regardless** — it removed the standing OOM risk on the in-place build (now ~67–75% of 5120 MB vs 99.9% at 3840 MB).
 
@@ -436,7 +445,9 @@ reasoning and measurements in `build-loop.sh`'s header):
 
 The release dir got its timestamp name from a **one-time** migration (start.sh ~line 400, converting an old real `/app/data/site` dir to a symlink) — it is NOT recreated per deploy.
 
-**Visitors experience:** during the ~5 min in-place full build, already-rebuilt pages show new content and not-yet-rebuilt pages show their previous content (no 404s). NOT an atomic swap — there is a window of mixed old/new pages.
+**Visitors experience:** the previous release, complete and self-consistent, for the entire build — then the new one, at the instant of the `mv -T`. No mixed old/new window.
+
+**Generated media lives OUTSIDE the release** (`/app/data/og`, `/app/data/img`, served by nginx `alias`). That is what makes a fresh release cheap enough to build every time: `og/` was 222 MB of pure duplication copied in per build, and `img/` would otherwise be regenerated by Sharp into every new directory. Both are safe to share — img filenames are content-addressed, og cards already live in `.cache/og`. **Do NOT seed a release from the previous one with `cp -al`:** Eleventy writes with `fs.writeFile`, which truncates in place, so a write through a hardlink mutates the LIVE release. Verified, not theorised.
 
 **If the build fails:** build-loop.sh captures the failure in `/app/data/build-status.json` (`"state":"failed"`) plus `/app/data/health/build.json`, and retries with exponential backoff (30s → 600s). It does NOT advance its scan marker on failure, so the changes that triggered the failed build are retried rather than lost. A build that HANGS rather than exits is caught separately by the stuck-build watchdog (`lib/build-watchdog.mjs`), which kills it past `max(4 × lastOkDurationSeconds, 900s)`. The in-place dir keeps serving whatever was last written (stale/partial) until a build succeeds. This is why a crashing build is a **silent stale-serve** — always verify build completion (see "Checking if the Eleventy Build Completed").
 
@@ -451,7 +462,7 @@ All `@rmdes/*` plugins with background tasks use `@rmdes/indiekit-startup-gate` 
 ```
 start.sh removes /app/data/.indiekit-ready    ← BEFORE Indiekit starts (line ~195)
 Indiekit starts → plugins call waitForReady() → file not found → wait
-Initial build is DISABLED (INITIAL_BUILD_OK=false) → start.sh skips the swap/signal branch
+start.sh's own initial build stays DISABLED (INITIAL_BUILD_OK=false) — build-loop.sh owns the first build
 build-loop.sh starts → runs a full in-place build immediately
 Eleventy's eleventy.after hook creates the signal  ← the live path
 Plugins detect signal → start background tasks
@@ -816,9 +827,18 @@ module.exports = {
 };
 ```
 
-### 10. Atomic Release Swap for Zero-Downtime Builds (currently DISABLED — retained for re-enable)
+### 10. Atomic Release Swap for Zero-Downtime Builds (LIVE since 2026-09-22)
 
-> **NOT active.** This atomic-swap pattern is commented out in `start.sh` (`INITIAL_BUILD_OK=false`) because the initial Eleventy build OOMs alongside Indiekit in the 4 GB cgroup. The live path is an in-place watcher build (see "Build Architecture"). The pattern below is the swap design to restore if the memory budget ever allows.
+> **Active, in `build-loop.sh`.** Each build writes to a fresh `/app/data/releases/<ts>/` and the `/app/data/site` symlink is renamed over on success.
+>
+> Three things make it safe, and each is there because of a specific failure:
+> - **`mv -T`, never `ln -sfn`.** `mv -T` is a rename(2); `ln -sfn` unlinks then links, and a request in that gap 404s on a missing document root.
+> - **A build that exits 0 with no `index.html` is refused.** In place, `Wrote 0 files` left the site stale for 24 hours on 2026-09-15; swapped, it would replace the site with an empty directory.
+> - **`prune_releases` resolves the live release and skips it explicitly**, so a backwards clock cannot make `ls -t` delete the directory being served.
+>
+> **Never seed a release from the previous one with `cp -al`.** Eleventy writes with `fs.writeFile`, which opens O_TRUNC and writes in place, so a write through a hardlink mutates the LIVE release — both paths end up with the new bytes on the same inode. Verified, not theorised. What makes a from-empty release cheap instead is that generated media (`/app/data/og`, `/app/data/img`) lives outside it, served by nginx `alias`.
+>
+> No `nginx -s reload` is needed: there is no `open_file_cache`, so nginx resolves the symlink at `open(2)` per request. **If `open_file_cache` is ever added to nginx.conf, a reload becomes REQUIRED in `swap_release()`.**
 
 The (disabled) design builds to a timestamped release directory, then atomically swaps the symlink so the old site serves throughout the build — no 404s during restart.
 
@@ -1039,7 +1059,7 @@ When modifying this app, verify:
 | File | Check |
 |------|-------|
 | Dockerfile | Symlinks created with `ln -s`, NODE_ENV after installs |
-| start.sh | Runs from /app/pkg/eleventy-site, in-place watcher build (atomic swap disabled), no cp to /app/data |
+| start.sh | Runs from /app/pkg/eleventy-site, exports OG_PUBLIC_DIR/IMG_PUBLIC_DIR, no cp to /app/data |
 | package.json | Has `"type": "module"` |
 | eleventy.config.js | ESM syntax, `markdownTemplateEngine: false`, ignores `_site`, correct glob paths |
 | _data/*.js | All use `export default`, not `module.exports` |
@@ -1096,7 +1116,7 @@ If the fix is not clear, investigate deeper or ask the user. Destructive shortcu
 6. ❌ Using CommonJS (`module.exports`) in ESM project (`"type": "module"`)
 7. ❌ `markdownTemplateEngine: "njk"` with code samples in content
 8. ❌ Referencing `/app/code/node_modules/.bin/eleventy` for Eleventy
-9. ❌ Wiping `/app/data/site/*` before building — the watcher rebuilds it in place; wiping causes a full-downtime gap (atomic swap is currently disabled, so there's no old-release fallback)
+9. ❌ Wiping `/app/data/site/*` — it is a SYMLINK to the live release; builds go to a fresh directory and swap. Never delete the live release, and never replace the symlink with a real directory (build-loop.sh then falls back to building in place and warns)
 10. ❌ Using `blog.rmendes.net` instead of `rmendes.net` - this is the production domain
 11. ❌ Disabling/removing features to work around bugs - find the root cause
 12. ❌ Editing theme files in `eleventy-site/` submodule instead of `indiekit-eleventy-theme/`
@@ -1141,7 +1161,14 @@ cloudron restart --app rmendes.net
 
 ### Rollback After a Bad Deploy
 
-Because deploys reuse one in-place release dir (no per-deploy timestamped releases, atomic swap disabled), there is no symlink to repoint for rollback. To roll back, **redeploy the previous image**: check out the prior code/submodule state and `make deploy SITE=<site> APP=<app>`, then confirm the build completed. (A bad *content/data* state is instead fixed forward + `cloudron restart`.)
+Since 2026-09-22 rollback is a relink. `KEEP_RELEASES=3` in build-loop.sh, so the two previous releases are on disk:
+
+```bash
+cloudron exec --app rmendes.net -- sh -c 'ls -1dt /app/data/releases/*/'
+cloudron exec --app rmendes.net -- sh -c 'ln -s /app/data/releases/<ts> /app/data/site_tmp && mv -T /app/data/site_tmp /app/data/site'
+```
+
+Use `mv -T`, never `ln -sfn` — the latter unlinks then links, and a request in that gap 404s. Note this is a CONTENT rollback only: the next content change rebuilds from the current image. To roll back CODE, redeploy the previous image. (A bad content/data state is instead fixed forward + `cloudron restart`.)
 
 ## Workspace Context
 
