@@ -71,6 +71,14 @@ http {
         root /app/data/site;
         index index.html;
 
+        # The OG build manifest must never be published: it lists every card's
+        # slug and title, including drafts and posts deleted but not yet pruned.
+        # It was served at /og/manifest.json until 2026-09-22, when .cache/og was
+        # still passthrough-copied into the output wholesale. An exact-match
+        # location outranks both the `^~` prefix below and every regex, so this
+        # holds regardless of what ends up in the published mirror.
+        location = /og/manifest.json { return 404; }
+
         # ─── Generated media, served from OUTSIDE the Eleventy output ───
         # Responsive images (/img/) and OG cards (/og/) are expensive to produce
         # and identical between builds, so they live in persistent directories

@@ -576,7 +576,12 @@ if [ -d /app/data/site/img ] && [ -z "$(ls -A /app/data/img 2>/dev/null)" ]; the
 fi
 if [ -d /app/data/site/og ] && [ -z "$(ls -A /app/data/og 2>/dev/null)" ]; then
     echo "==> Seeding ${OG_PUBLIC_DIR} from the current release (one-time)"
-    cp -rn /app/data/site/og/. /app/data/og/ 2>/dev/null || true
+    # Cards ONLY. The previous output directory also holds manifest.json,
+    # because .cache/og used to be passthrough-copied wholesale — which is how
+    # /og/manifest.json came to be publicly served, listing every card's slug
+    # and title including drafts and deleted posts. Copying *.png keeps the
+    # build manifest out of the published mirror.
+    find /app/data/site/og -maxdepth 1 -name '*.png' -exec cp -n {} /app/data/og/ \; 2>/dev/null || true
     chown -R cloudron:cloudron /app/data/og 2>/dev/null || true
     echo "==> Seeded $(find /app/data/og -type f | wc -l) OG card(s)"
 fi

@@ -52,7 +52,17 @@ set +e  # a failing build must never kill this loop
 
 ELEVENTY_DIR=/app/pkg/eleventy-site
 CONTENT_DIR=/app/data/content
-OUTPUT_DIR=/app/data/site
+
+# /app/data/site is a SYMLINK to the live release. Builds target a fresh
+# directory under releases/ and the symlink is renamed over on success, so the
+# previous release serves — complete and self-consistent — for the whole build.
+SITE_LINK=/app/data/site
+RELEASES_DIR=/app/data/releases
+
+# Keep this many releases, newest first. Each is ~910MB now that generated media
+# lives outside the output (og/ and img/ are served by nginx alias from
+# /app/data). Rollback is a relink to an older one plus a restart.
+KEEP_RELEASES=3
 
 # How often to look for changes. Cheap: one find(1) that stops at the first hit.
 POLL_SECONDS=10
@@ -145,6 +155,41 @@ EOF
     ' 2>/dev/null || echo "[build-loop] build-health write skipped"
 }
 
+# Atomic symlink swap.
+#
+# `mv -T` is a rename(2): the symlink never does not exist. `ln -sfn` is NOT a
+# substitute — it unlinks then links, and a request landing in that window gets
+# a 404 from the document root disappearing.
+#
+# No `nginx -s reload` is needed: the config has no open_file_cache, so nginx
+# resolves the symlink through the kernel on every open(2) and picks up the new
+# target immediately. Requests already in flight keep streaming from the inode
+# they opened, which is exactly the atomicity wanted. If open_file_cache is ever
+# added to nginx.conf, a reload becomes REQUIRED here.
+swap_release() {
+    local new_release="$1"
+    ln -s "$new_release" "${SITE_LINK}_tmp" || return 1
+    chown -h cloudron:cloudron "${SITE_LINK}_tmp" 2>/dev/null || true
+    mv -T "${SITE_LINK}_tmp" "$SITE_LINK" || { rm -f "${SITE_LINK}_tmp"; return 1; }
+    return 0
+}
+
+# Drop releases beyond KEEP_RELEASES, newest kept.
+#
+# The live release is resolved and skipped explicitly rather than trusting it to
+# be among the newest: if the clock ever went backwards, or a release directory
+# were touched, `ls -t` ordering would otherwise delete the directory the
+# running site is being served from.
+prune_releases() {
+    local live dir
+    live=$(readlink -f "$SITE_LINK" 2>/dev/null)
+    for dir in $(ls -1dt "${RELEASES_DIR}"/*/ 2>/dev/null | tail -n +$((KEEP_RELEASES + 1))); do
+        dir=${dir%/}
+        [ "$(readlink -f "$dir")" = "$live" ] && continue
+        rm -rf "$dir" && echo "[build-loop] Removed old release $(basename "$dir")"
+    done
+}
+
 run_build() {
     local reason="$1"
     purge_empty_fetch_cache
@@ -159,9 +204,40 @@ run_build() {
     local started
     started=$(date +%s)
 
+    # Where this build writes. With the swap enabled that is a brand-new
+    # directory; the live site is not touched until the build has succeeded.
+    local target
+    if [ "$SWAP_ENABLED" = true ]; then
+        target="${RELEASES_DIR}/$(date +%s)"
+        mkdir -p "$target" || return 1
+        chown cloudron:cloudron "$target" 2>/dev/null || true
+    else
+        target="$SITE_LINK"
+    fi
+
     cd "$ELEVENTY_DIR" || return 1
-    gosu cloudron:cloudron "${ELEVENTY_DIR}/node_modules/.bin/eleventy" --output="$OUTPUT_DIR"
+    gosu cloudron:cloudron "${ELEVENTY_DIR}/node_modules/.bin/eleventy" --output="$target"
     local exit_code=$?
+
+    # A build that wrote nothing must never be swapped in, whatever it exited
+    # with. `Wrote 0 files` is the failure that kept the watcher alive for 24
+    # hours on 2026-09-15; in place it left the site stale, but swapped it would
+    # replace the site with an empty directory.
+    if [ $exit_code -eq 0 ] && [ "$SWAP_ENABLED" = true ] && [ ! -s "${target}/index.html" ]; then
+        echo "[build-loop] Build exited 0 but produced no index.html — refusing to swap"
+        exit_code=90
+    fi
+
+    if [ $exit_code -eq 0 ] && [ "$SWAP_ENABLED" = true ]; then
+        if swap_release "$target"; then
+            echo "[build-loop] Swapped to release $(basename "$target")"
+            prune_releases
+        else
+            echo "[build-loop] Build succeeded but the release swap FAILED — site still on the previous release"
+            exit_code=91
+        fi
+    fi
+
     local elapsed=$(( $(date +%s) - started ))
 
     if [ $exit_code -eq 0 ]; then
@@ -173,6 +249,11 @@ run_build() {
         echo "[build-loop] Build finished in ${elapsed}s"
     else
         rm -f "$MARKER.pending"
+        # Throw away the half-built release. The live symlink was never touched,
+        # so the previous release keeps serving, complete and self-consistent.
+        if [ "$SWAP_ENABLED" = true ] && [ -n "${target:-}" ] && [ "$target" != "$SITE_LINK" ]; then
+            rm -rf "$target"
+        fi
         echo "[build-loop] Build FAILED with code ${exit_code} after ${elapsed}s — retrying in ${BACKOFF_SECONDS}s"
         report_failure "$exit_code"
         sleep "$BACKOFF_SECONDS"
@@ -184,7 +265,18 @@ run_build() {
 # Always build once at startup, whatever the marker says. A deploy changes the
 # THEME and the plugin loadout, not the content, so change detection alone would
 # happily serve the previous build's HTML from a container running new code.
-echo "==> [build-loop] Starting (one-shot full builds; poll ${POLL_SECONDS}s, debounce ${DEBOUNCE_SECONDS}s)"
+# Atomic swap requires /app/data/site to BE a symlink. start.sh migrates an old
+# real directory into releases/ and links it, so this should always hold — but if
+# it somehow does not, build in place rather than refuse to build at all. A site
+# that rebuilds without atomicity beats a site that stops rebuilding.
+if [ -L "$SITE_LINK" ]; then
+    SWAP_ENABLED=true
+else
+    SWAP_ENABLED=false
+    echo "==> [build-loop] WARNING: ${SITE_LINK} is not a symlink — building IN PLACE, no atomic swap"
+fi
+
+echo "==> [build-loop] Starting (one-shot full builds; poll ${POLL_SECONDS}s, debounce ${DEBOUNCE_SECONDS}s, swap=${SWAP_ENABLED})"
 ARTIFACT_SIG=$(artifact_signature)
 run_build "container start"
 
