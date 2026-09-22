@@ -574,14 +574,22 @@ if [ -d /app/data/site/img ] && [ -z "$(ls -A /app/data/img 2>/dev/null)" ]; the
     chown -R cloudron:cloudron /app/data/img 2>/dev/null || true
     echo "==> Seeded $(find /app/data/img -type f | wc -l) image file(s)"
 fi
-if [ -d /app/data/site/og ] && [ -z "$(ls -A /app/data/og 2>/dev/null)" ]; then
-    echo "==> Seeding ${OG_PUBLIC_DIR} from the current release (one-time)"
-    # Cards ONLY. The previous output directory also holds manifest.json,
-    # because .cache/og used to be passthrough-copied wholesale — which is how
-    # /og/manifest.json came to be publicly served, listing every card's slug
-    # and title including drafts and deleted posts. Copying *.png keeps the
-    # build manifest out of the published mirror.
-    find /app/data/site/og -maxdepth 1 -name '*.png' -exec cp -n {} /app/data/og/ \; 2>/dev/null || true
+if [ -d /app/data/cache/og ] && [ -z "$(ls -A /app/data/og 2>/dev/null)" ]; then
+    echo "==> Seeding ${OG_PUBLIC_DIR} from the card cache (one-time)"
+    # Source is .cache/og, the GENERATOR'S OWN cache, not the previous release.
+    # The release is the wrong source twice over: it stops containing og/ at all
+    # once this change is live, so a later re-seed (a restored backup with an
+    # empty /app/data/og, say) would silently copy nothing; and the cache is the
+    # authority on what cards exist anyway.
+    #
+    # Cards ONLY — *.png. The cache also holds manifest.json, and copying the
+    # cache wholesale is exactly how /og/manifest.json came to be publicly
+    # served, listing every card's slug and title including drafts and deleted
+    # posts. nginx blocks that path too, but the file should not be there.
+    #
+    # `-exec ... +` batches into as few cp invocations as possible; `\;` forks
+    # one process per file, which is ~2,800 processes on the big site.
+    find /app/data/cache/og -maxdepth 1 -name '*.png' -exec cp -n -t /app/data/og/ {} + 2>/dev/null || true
     chown -R cloudron:cloudron /app/data/og 2>/dev/null || true
     echo "==> Seeded $(find /app/data/og -type f | wc -l) OG card(s)"
 fi
