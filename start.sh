@@ -3,7 +3,7 @@
 set -eu
 
 echo "==> Ensure directories"
-mkdir -p /app/data/config /app/data/content /app/data/uploads /app/data/releases /app/data/cache /app/data/images
+mkdir -p /app/data/config /app/data/content /app/data/uploads /app/data/releases /app/data/cache /app/data/images /app/data/og /app/data/img
 
 # Clean up data corruption from previous buggy deployments
 echo "==> Cleaning up any corrupted data from backups"
@@ -544,6 +544,42 @@ fi
 # Budget of the 5120MB cgroup: build 3328 + Indiekit ~600 + og-cli batch ~460
 # + nginx/redis ~30 = ~4400, leaving ~700MB margin.
 export NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
+
+# ─── Generated media lives OUTSIDE the Eleventy output ───
+# Responsive images and OG cards are expensive to produce and identical between
+# builds. Writing them into the output makes the output expensive to recreate,
+# which is what blocks an atomic release swap: a release must be built from
+# EMPTY (seeding from the previous release with hardlinks is not an option —
+# Eleventy writes with fs.writeFile, which truncates in place and would mutate
+# the live release through the link), and from empty eleventy-img regenerates
+# every file.
+#
+# Both are safe to share across releases: img/ filenames are content-addressed
+# (hash-width-format), so a changed source yields a different name; og/ cards
+# already live in the persistent .cache/og and were merely copied in. nginx
+# serves both with an `alias`. The og copy target is a separate PUBLIC dir
+# rather than .cache/og itself, so the build cache — manifest included — stays
+# off the public surface.
+export OG_PUBLIC_DIR=/app/data/og
+export IMG_PUBLIC_DIR=/app/data/img
+chown cloudron:cloudron /app/data/og /app/data/img 2>/dev/null || true
+
+# One-time migration: seed the new dirs from the current output so the first
+# build after this change does not have to re-run Sharp over every image. Only
+# when empty, so it costs one `ls` on every subsequent boot. cp -n never
+# clobbers, so a partially-seeded dir completes rather than being rewritten.
+if [ -d /app/data/site/img ] && [ -z "$(ls -A /app/data/img 2>/dev/null)" ]; then
+    echo "==> Seeding ${IMG_PUBLIC_DIR} from the current release (one-time)"
+    cp -rn /app/data/site/img/. /app/data/img/ 2>/dev/null || true
+    chown -R cloudron:cloudron /app/data/img 2>/dev/null || true
+    echo "==> Seeded $(find /app/data/img -type f | wc -l) image file(s)"
+fi
+if [ -d /app/data/site/og ] && [ -z "$(ls -A /app/data/og 2>/dev/null)" ]; then
+    echo "==> Seeding ${OG_PUBLIC_DIR} from the current release (one-time)"
+    cp -rn /app/data/site/og/. /app/data/og/ 2>/dev/null || true
+    chown -R cloudron:cloudron /app/data/og 2>/dev/null || true
+    echo "==> Seeded $(find /app/data/og -type f | wc -l) OG card(s)"
+fi
 # Syndication webhook — the theme's eleventy.after hook calls this once a build
 # completes, cutting syndication latency from the poller's ~2min to ~5s.
 export SYNDICATE_WEBHOOK_URL="http://localhost:8080/syndicate"

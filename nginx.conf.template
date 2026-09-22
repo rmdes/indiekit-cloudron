@@ -71,6 +71,36 @@ http {
         root /app/data/site;
         index index.html;
 
+        # ─── Generated media, served from OUTSIDE the Eleventy output ───
+        # Responsive images (/img/) and OG cards (/og/) are expensive to produce
+        # and identical between builds, so they live in persistent directories
+        # instead of inside the release. That is what lets a release directory be
+        # built from empty and swapped atomically.
+        #
+        # `^~` IS REQUIRED, not decoration: the static-asset regex below also
+        # matches /og/*.png and /img/*.webp, and in nginx a regex location beats
+        # a plain prefix one. Without `^~` these aliases would never be reached
+        # and every generated image would 404 after the swap. The caching headers
+        # are repeated here for the same reason — that regex no longer runs for
+        # these paths.
+        #
+        # Trailing slashes matter: `location /img` would also capture /images/*.
+        # The og SOURCE cache (.cache/og, which holds manifest.json) is NOT
+        # served; /app/data/og is a published mirror of it.
+        location ^~ /og/ {
+            alias /app/data/og/;
+            expires 30d;
+            add_header Cache-Control "public";
+            add_header Access-Control-Allow-Origin "*";
+        }
+
+        location ^~ /img/ {
+            alias /app/data/img/;
+            expires 30d;
+            add_header Cache-Control "public";
+            add_header Access-Control-Allow-Origin "*";
+        }
+
         # Static asset caching for Eleventy output only.
         # MUST NOT match /assets/ (Indiekit backend plugin assets proxied to :8080).
         location ~* ^/(css|js|fonts|og|pagefind|img|images|graph)/.*\.(css|js|woff2?|ttf|eot)$ {
