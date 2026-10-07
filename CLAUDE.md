@@ -501,11 +501,38 @@ npm installs our fork under the upstream name. When Indiekit's default plugin lo
 - `@indiekit/endpoint-posts` → `@rmdes/indiekit-endpoint-posts`
 - `@indiekit/endpoint-micropub` → `@rmdes/indiekit-endpoint-micropub`
 - `@indiekit/endpoint-syndicate` → `@rmdes/indiekit-endpoint-syndicate`
-- `@indiekit/endpoint-files` → `@rmdes/indiekit-endpoint-files`
 - `@indiekit/endpoint-share` → `@rmdes/indiekit-endpoint-share`
 - `@indiekit/frontend` → `@rmdes/indiekit-frontend`
 
 **See also:** The plugin-registry marks these with `overridden: true` so the compose script knows not to add them as direct deps.
+
+### Retire an override once it stops being justified
+
+An override is a promise to maintain a divergence. When upstream absorbs the
+feature the fork existed for, the override inverts: it stops you receiving
+upstream's later fixes **to your own contribution**.
+
+`@indiekit/endpoint-files` was retired on 2026-10-07 for exactly that. The fork
+existed for multi-file upload; upstream implemented it, then hardened the same
+code path (`request.session?.access_token` with optional chaining, where the fork
+destructured `request.session` and threw without one). Diffing fork against
+`indiekit-origin/packages/endpoint-files` left two differences: one cosmetic, one
+where **we were behind**.
+
+How to check a fork is still justified:
+```bash
+diff -rq indiekit-origin/packages/<pkg> indiekit-<pkg> \
+  -x node_modules -x .git -x package.json -x package-lock.json -x CHANGELOG.md -x test
+```
+Audited 2026-10-07: files 2 (retired), syndicate 2, auth 5, micropub 13, share 18,
+posts 35, frontend 54 — all but files still carry real divergence.
+
+**To retire one:** delete its line from `package.json` → `overrides`. That is all.
+Do NOT delete its `plugin-registry.yaml` entry — `overridden: true` still describes
+what the composer must do for an upstream DEFAULT plugin (skip as a direct dep, it
+arrives transitively; skip in the plugins array, core auto-imports it), and
+overridden entries feed `plugin-loadout.json`, so deleting the entry would flip the
+theme's `loadedPlugins.<key>` gate to false and hide UI.
 
 ## Security Hardening
 
