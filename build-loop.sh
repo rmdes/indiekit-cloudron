@@ -80,6 +80,22 @@ MAX_BACKOFF_SECONDS=600
 # Lives in /app/data so it survives container recreation.
 MARKER=/app/data/.last-build-scan
 
+# Per-build logs, written to persistent storage rather than only to stdout.
+#
+# `cloudron logs` is a fixed-size window over EVERYTHING the container emits,
+# and this app emits a lot: ActivityPub federation, nginx access lines, redis
+# BGSAVE chatter. On 2026-10-08 a 50,000-line window reached back only ~4 hours,
+# so a build that finished 16 minutes earlier had already been evicted — twice
+# during an investigation into build duration. Build output that only exists in
+# that window is effectively unavailable exactly when it is wanted.
+#
+# So the full Eleventy output goes to a file and only a summary to stdout. The
+# `[build-loop]` lines stay on stdout (they are what `cloudron logs` is good
+# for), and on failure the tail is echoed so a broken build is still visible
+# without going to look for it.
+LOGS_DIR=/app/data/logs
+KEEP_BUILD_LOGS=10
+
 # Purge eleventy-fetch cache entries whose body file is empty.
 # eleventy-fetch decides cache validity WITHOUT validating content: v4 checks the
 # metadata sidecar only, v5 adds existsSync — which a zero-byte file passes. It
@@ -216,8 +232,31 @@ run_build() {
     fi
 
     cd "$ELEVENTY_DIR" || return 1
-    gosu cloudron:cloudron "${ELEVENTY_DIR}/node_modules/.bin/eleventy" --output="$target"
+    # Full output to the log file; stdout gets a summary. See LOGS_DIR above.
+    local log
+    log="${LOGS_DIR}/build-$(date -u +%Y%m%dT%H%M%SZ).log"
+    mkdir -p "$LOGS_DIR" 2>/dev/null
+    gosu cloudron:cloudron "${ELEVENTY_DIR}/node_modules/.bin/eleventy" --output="$target" \
+        > "$log" 2>&1
     local exit_code=$?
+    chown cloudron:cloudron "$log" 2>/dev/null || true
+
+    # One line on stdout so `cloudron logs` still shows what a build produced.
+    grep -aoE "\[11ty\] (Copied [0-9]+ )?Wrote [0-9]+ files? in [0-9.]+ seconds" "$log" \
+        | tail -1 | sed 's/^/[build-loop] /' || true
+
+    # A failed build must be visible without having to go and find the file.
+    if [ $exit_code -ne 0 ]; then
+        echo "[build-loop] --- tail of $log ---"
+        tail -40 "$log" 2>/dev/null
+        echo "[build-loop] --- end of tail ---"
+    fi
+
+    # Keep the newest KEEP_BUILD_LOGS. Each is small (a few hundred KB) unless
+    # ELEVENTY_DEBUG is on, in which case it is where the benchmark output goes
+    # instead of into the container log.
+    ls -1t "${LOGS_DIR}"/build-*.log 2>/dev/null | tail -n +$((KEEP_BUILD_LOGS + 1)) \
+        | while read -r old; do rm -f "$old"; done
 
     # A build that wrote nothing must never be swapped in, whatever it exited
     # with. `Wrote 0 files` is the failure that kept the watcher alive for 24

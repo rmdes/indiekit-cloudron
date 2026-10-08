@@ -3,7 +3,7 @@
 set -eu
 
 echo "==> Ensure directories"
-mkdir -p /app/data/config /app/data/content /app/data/uploads /app/data/releases /app/data/cache /app/data/images /app/data/og /app/data/img
+mkdir -p /app/data/config /app/data/content /app/data/uploads /app/data/releases /app/data/cache /app/data/images /app/data/og /app/data/img /app/data/logs
 
 # Clean up data corruption from previous buggy deployments
 echo "==> Cleaning up any corrupted data from backups"
@@ -448,7 +448,23 @@ echo "==> Old site continues serving while new build runs"
 # nginx alias before a swap is worth it.
 INITIAL_BUILD_OK=false
 cd /app/pkg/eleventy-site
-export DEBUG="Eleventy:Benchmark*"
+
+# Eleventy debug output is OPT-IN. It used to be unconditionally
+# `DEBUG="Eleventy:Benchmark*"`, which was the single largest source of
+# container log output — 12,059 of 58,947 lines over 20h (20.4%), the great
+# majority of them `Benchmark 0ms` entries.
+#
+# That is self-defeating: it floods `cloudron logs` and evicts the build output
+# it exists to help diagnose. On 2026-10-08 a build 16 minutes old had already
+# been pushed out of a 50,000-line window, twice costing time during an
+# investigation into build duration.
+#
+# To profile a build, set it in /app/data/config/env.sh and restart:
+#   export ELEVENTY_DEBUG="Eleventy:Benchmark*"   # phase timings
+#   export ELEVENTY_DEBUG="Eleventy*"             # everything
+# Build logs are also written durably to /app/data/logs/ regardless of this
+# (see build-loop.sh), so routine diagnosis should not need it at all.
+export DEBUG="${ELEVENTY_DEBUG:-}"
 
 # # Build new release to a timestamped directory
 # RELEASE_TS=$(date +%s)
