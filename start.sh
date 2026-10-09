@@ -561,6 +561,43 @@ fi
 # + nginx/redis ~30 = ~4400, leaving ~700MB margin.
 export NODE_OPTIONS="--max-old-space-size=3328 --expose-gc --heapsnapshot-signal=SIGUSR2 --diagnostic-dir=/tmp"
 
+# ─── Opt-in CPU profile of the build (ELEVENTY_CPU_PROF) ───
+#
+# V8's SAMPLING profiler. Use this, not DEBUG=Eleventy:Benchmark*, whenever the
+# question is "how many seconds does X cost".
+#
+# Why: on 2026-10-09 the instrumented benchmark reported
+#   518807ms  57%  3463x  (Aggregate) Transforming `html` with posthtml
+# on a 908s build. Fixing that line cut the build 655.8s -> 590.2s — 65.6s, not
+# the ~450s the number implied. That benchmark wraps all nested plugin work, so
+# it absorbed the profiler's own overhead (the instrumented run was 908s against
+# an un-instrumented 655.8s, and nearly the whole delta landed inside the one
+# line being read). Instrumented profiles give a usable RANKING and useless
+# absolutes. --cpu-prof samples on a timer instead, so it does not distort what
+# it measures.
+#
+# Usage: set in /app/data/config/env.sh and restart, then collect from
+# /app/data/logs/cpuprof/*.cpuprofile (openable in Chrome DevTools → Performance,
+# or speedscope). UNSET IT AFTERWARDS — every build writes another profile.
+#
+#   export ELEVENTY_CPU_PROF=1
+#   export ELEVENTY_CPU_PROF_INTERVAL=2000   # optional, microseconds, default 2000
+#
+# 2000us over a ~600s build is ~300k samples — ample to attribute minutes, and a
+# file small enough to copy out. The default 1000us doubles that for no extra
+# insight at this granularity.
+#
+# The profile is written when the process EXITS, which is only safe because every
+# build is now a one-shot process (build-loop.sh). Under the old
+# `--watch --incremental` watcher the process never exited and this would have
+# produced nothing.
+if [ -n "${ELEVENTY_CPU_PROF:-}" ]; then
+    mkdir -p /app/data/logs/cpuprof
+    chown -R cloudron:cloudron /app/data/logs/cpuprof 2>/dev/null || true
+    export NODE_OPTIONS="$NODE_OPTIONS --cpu-prof --cpu-prof-dir=/app/data/logs/cpuprof --cpu-prof-interval=${ELEVENTY_CPU_PROF_INTERVAL:-2000}"
+    echo "==> ELEVENTY_CPU_PROF set: build will write a .cpuprofile to /app/data/logs/cpuprof"
+fi
+
 # ─── Generated media lives OUTSIDE the Eleventy output ───
 # Responsive images and OG cards are expensive to produce and identical between
 # builds. Writing them into the output makes the output expensive to recreate,
