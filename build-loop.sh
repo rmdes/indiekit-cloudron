@@ -182,6 +182,46 @@ EOF
 # target immediately. Requests already in flight keep streaming from the inode
 # they opened, which is exactly the atomicity wanted. If open_file_cache is ever
 # added to nginx.conf, a reload becomes REQUIRED here.
+# Ask Indiekit to syndicate now that the new release is actually being served.
+#
+# The theme ALSO pings this from its `eleventy.after` hook, and for a new post
+# that ping is useless: eleventy.after runs inside the Eleventy process, BEFORE
+# this script swaps the symlink, so the public URL still serves the PREVIOUS
+# release. endpoint-syndicate's readiness gate then refuses — correctly, it will
+# not push a link to Bluesky that 404s — and the work falls through to the 2-min
+# poller in start.sh. Observed on 2026-10-09 for note 4e770:
+#
+#   06:31:38  Skipping https://rmendes.net/notes/.../4e770 — not yet built (post: 404)
+#   06:33:39  Skipping ... (post: 404)
+#   06:35:40  Skipping ... (post: 404)
+#   06:36:07  Skipping ... (post: 404)
+#   06:36:32  <swap>
+#   06:37:58  syndicated          <- ~86s of pure waiting
+#
+# Firing it HERE, after the swap, removes that wait (0-120s, ~60s mean). The
+# theme's earlier ping is left in place: deployments without a release swap
+# (indiekit-deploy builds in place) rely on it, and here it merely logs a skip.
+#
+# Best-effort by design: a failure must not fail the build, because the poller is
+# still behind it. Token minting mirrors the poller in start.sh.
+trigger_syndication() {
+    local secret token
+    secret=$(cat /app/data/config/.secret 2>/dev/null)
+    [ -n "$secret" ] || return 0
+    [ -n "${CLOUDRON_APP_ORIGIN:-}" ] || return 0
+
+    token=$(cd /app/code && JWT_ORIGIN="$CLOUDRON_APP_ORIGIN" JWT_SECRET="$secret" node -e "
+        const jwt = require('jsonwebtoken');
+        console.log(jwt.sign({ me: process.env.JWT_ORIGIN, scope: 'update' },
+            process.env.JWT_SECRET, { expiresIn: '5m' }));
+    " 2>/dev/null)
+    [ -n "$token" ] || return 0
+
+    curl -s -X POST "http://localhost:8080/syndicate?token=${token}" \
+        -H "Content-Type: application/json" --max-time 60 >/dev/null 2>&1 || true
+    echo "[build-loop] Syndication triggered post-swap"
+}
+
 swap_release() {
     local new_release="$1"
     ln -s "$new_release" "${SITE_LINK}_tmp" || return 1
@@ -271,6 +311,7 @@ run_build() {
         if swap_release "$target"; then
             echo "[build-loop] Swapped to release $(basename "$target")"
             prune_releases
+            trigger_syndication
         else
             echo "[build-loop] Build succeeded but the release swap FAILED — site still on the previous release"
             exit_code=91
