@@ -26,6 +26,20 @@ http {
     sendfile on;
     keepalive_timeout 65;
     gzip on;
+    # gzip_comp_level defaults to 1 — nginx's WEAKEST setting — and that default
+    # cost more than it saved. Measured on rmendes 2026-10-09, one note page:
+    #
+    #   minified   + gzip-1   23,596 bytes   (HTML minification on, level unset)
+    #   unminified + gzip-1   28,035 bytes   (minification off)
+    #   unminified + gzip-6   22,976 bytes   (smaller than either, no build cost)
+    #
+    # The theme's htmlmin transform was doing at BUILD time what compression does
+    # better at REQUEST time: 262s of every build (~8.7 min per published post,
+    # since a publish costs two full builds) to save 4.4KB per page that level 5
+    # recovers for free. htmlmin is now off by default (theme #50) and this is
+    # what pays for it. 5 rather than 6: 6 is ~1% smaller for noticeably more CPU
+    # per request, and 5 is the usual sweet spot.
+    gzip_comp_level 5;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
 
     # Map to get correct host without port
