@@ -67,9 +67,28 @@ KEEP_RELEASES=3
 # How often to look for changes. Cheap: one find(1) that stops at the first hit.
 POLL_SECONDS=10
 
-# After spotting a change, wait this long before building so a burst of posts
-# (or a Micropub write plus its media) becomes ONE build instead of several.
+# After spotting a change, wait for this much QUIET before building, so a burst
+# of posts (or a Micropub write plus its media) becomes ONE build instead of
+# several. ROLLING since 2026-10-10: the window restarts whenever another change
+# arrives, so a lone post still costs only DEBOUNCE_SECONDS while a trickle keeps
+# merging. A fixed delay could not do both.
+#
+# Why the base stays short rather than being raised: the build itself is already
+# a large batching window. MARKER.pending is stamped BEFORE the build, so
+# anything written during those ~240s is newer than the stamp and is collected
+# into the NEXT build — all of it together, not one build per item. Measured
+# 2026-10-09: a note plus three reader likes made during its build cost three
+# builds, not eight. The debounce only has to cover the gap between "first change
+# seen" and "build starts"; raising it would tax every single post to merge a
+# window the build duration already covers.
 DEBOUNCE_SECONDS=15
+
+# How often to re-check for activity while debouncing.
+DEBOUNCE_TICK=5
+
+# Starvation cap. Without it, posting steadily every few seconds would defer the
+# build indefinitely.
+MAX_DEBOUNCE_SECONDS=180
 
 # A build that fails will still look "changed" on the next poll, so back off
 # instead of spinning. Resets on the first success.
@@ -139,6 +158,23 @@ content_changed() {
         \( -newer "$MARKER" \) -print -quit 2>/dev/null)" ]
 }
 
+# Newest mtime anywhere under content, as an epoch string. Used ONLY to tell
+# whether changes are still ARRIVING during the rolling debounce.
+#
+# content_changed() cannot answer that: it compares against MARKER, the last
+# SUCCESSFUL build, so once anything has changed it stays true for the whole wait
+# and every tick would look like fresh activity. This takes the max mtime
+# instead, which advances on a new file and — because directories are included,
+# for the same reason content_changed() includes them — on a deletion too.
+#
+# Walking ~2,900 entries every DEBOUNCE_TICK is cheap (page cache) and only runs
+# while a build is already pending, never in the idle poll.
+content_activity_stamp() {
+    find "$CONTENT_DIR" \
+        -path "$CONTENT_DIR/_data" -prune -o \
+        -printf '%T@\n' 2>/dev/null | sort -n | tail -1
+}
+
 # Artifact signature — CONTENT hashed, for the reason above. md5sum prints
 # "hash  path" per line, so an added, deleted or renamed artifact moves the
 # signature too. Total payload is ~55KB. Hashes EVERY json artifact rather than
@@ -148,6 +184,40 @@ content_changed() {
 # half-written artifact can never enter the signature.
 artifact_signature() {
     md5sum "$CONTENT_DIR"/_data/*.json "$CONTENT_DIR"/_data/compositions/*.json 2>/dev/null | tr '\n' ','
+}
+
+# Block until content has been QUIET for DEBOUNCE_SECONDS, or MAX_DEBOUNCE_SECONDS
+# has elapsed. Rolling: every change restarts the quiet count, so a lone post
+# costs DEBOUNCE_SECONDS and a trickle merges into one build.
+#
+# Echoes the seconds waited on the last line so it can be asserted; progress
+# messages go above it. Tested by build-loop.test.sh, which sources this file
+# with BUILD_LOOP_TEST=1 and calls this function directly — do not inline it back
+# into the main loop, or the test stops covering the real code.
+await_quiet() {
+    local waited=0 quiet=0 prev_stamp prev_sig stamp_now sig_tick
+    prev_stamp=$(content_activity_stamp)
+    prev_sig=$(artifact_signature)
+
+    while [ "$quiet" -lt "$DEBOUNCE_SECONDS" ] && [ "$waited" -lt "$MAX_DEBOUNCE_SECONDS" ]; do
+        sleep "$DEBOUNCE_TICK"
+        waited=$(( waited + DEBOUNCE_TICK ))
+        stamp_now=$(content_activity_stamp)
+        sig_tick=$(artifact_signature)
+        if [ "$stamp_now" != "$prev_stamp" ] || [ "$sig_tick" != "$prev_sig" ]; then
+            prev_stamp="$stamp_now"
+            prev_sig="$sig_tick"
+            quiet=0
+            echo "[build-loop] More changes arrived — extending debounce (waited ${waited}s)"
+        else
+            quiet=$(( quiet + DEBOUNCE_TICK ))
+        fi
+    done
+
+    if [ "$waited" -ge "$MAX_DEBOUNCE_SECONDS" ]; then
+        echo "[build-loop] Debounce cap reached (${MAX_DEBOUNCE_SECONDS}s) — building now"
+    fi
+    echo "$waited"
 }
 
 # Report a failed build the same way start.sh's old crash wrapper did, so the
@@ -342,6 +412,14 @@ run_build() {
     fi
 }
 
+# ─── Runtime starts here ───
+# Everything above is definitions. `BUILD_LOOP_TEST=1 . build-loop.sh` loads them
+# without building, which is how build-loop.test.sh exercises await_quiet against
+# the real implementation instead of a copy that could drift from it.
+if [ -n "${BUILD_LOOP_TEST:-}" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 # Always build once at startup, whatever the marker says. A deploy changes the
 # THEME and the plugin loadout, not the content, so change detection alone would
 # happily serve the previous build's HTML from a container running new code.
@@ -356,7 +434,7 @@ else
     echo "==> [build-loop] WARNING: ${SITE_LINK} is not a symlink — building IN PLACE, no atomic swap"
 fi
 
-echo "==> [build-loop] Starting (one-shot full builds; poll ${POLL_SECONDS}s, debounce ${DEBOUNCE_SECONDS}s, swap=${SWAP_ENABLED})"
+echo "==> [build-loop] Starting (one-shot full builds; poll ${POLL_SECONDS}s, rolling debounce ${DEBOUNCE_SECONDS}s quiet / ${MAX_DEBOUNCE_SECONDS}s cap, swap=${SWAP_ENABLED})"
 ARTIFACT_SIG=$(artifact_signature)
 run_build "container start"
 
@@ -374,9 +452,8 @@ while true; do
     fi
     [ -z "$REASON" ] && continue
 
-    # Let the burst settle. Five posts published in a minute should cost one
-    # build, not five.
-    sleep "$DEBOUNCE_SECONDS"
+    # Let the burst settle before building.
+    await_quiet
 
     # Re-read the artifact signature AFTER the debounce so changes that landed
     # during it are counted as built, not as a fresh trigger on the next pass.
