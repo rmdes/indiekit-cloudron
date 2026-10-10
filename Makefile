@@ -309,7 +309,12 @@ push-env: ## Push the active site's env.sh into the running container
 	@if [ -z "$(APP)" ]; then echo "ERROR: APP= required"; exit 1; fi
 	@if [ -f "$(CONFIG_DIR)/env.sh" ]; then \
 		echo "==> Pushing $(CONFIG_DIR)/env.sh to $(APP)..."; \
-		cloudron push --app $(APP) "$(CONFIG_DIR)/env.sh" /app/data/config/env.sh; \
+		cloudron push --app $(APP) "$(CONFIG_DIR)/env.sh" /app/data/config/env.sh \
+		  || { echo "ERROR: push FAILED — env.sh was NOT updated in the container."; \
+		       echo "       If it said ENETUNREACH, this host has no IPv6 route while the"; \
+		       echo "       Cloudron instance publishes AAAA. Retry with:"; \
+		       echo "         NODE_OPTIONS=--dns-result-order=ipv4first make push-env SITE=$(SITE) APP=$(APP)"; \
+		       exit 1; }; \
 		echo "==> Done. Restart with: cloudron restart --app $(APP)"; \
 	else \
 		echo "ERROR: $(CONFIG_DIR)/env.sh not found"; exit 1; \
