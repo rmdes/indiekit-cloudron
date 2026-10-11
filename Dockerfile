@@ -99,18 +99,6 @@ RUN rm -rf /app/pkg/eleventy-site/content && ln -s /app/data/content /app/pkg/el
 # and public/well-known endpoints (abuse protection).
 COPY patches/routes.js /app/code/node_modules/@indiekit/indiekit/lib/routes.js
 
-# Patch error.js: suppress stack traces in production
-# Upstream exposes full stack traces in both HTML and JSON error responses,
-# leaking internal file paths and dependency versions. This patch only includes
-# stack traces when NODE_ENV !== "production".
-COPY patches/error.js /app/code/node_modules/@indiekit/indiekit/lib/middleware/error.js
-
-# Patch indieauth.js: fix overly restrictive redirect URI validation
-# Upstream regex /^\/[\w&/=?]*$/ rejects hyphens, dots, and percent-encoded
-# characters in redirect paths, breaking login when returning to URLs like
-# /auth/new-password or /files/upload-photos.
-COPY patches/indieauth.js /app/code/node_modules/@indiekit/indiekit/lib/indieauth.js
-
 ENV NODE_ENV=production
 
 WORKDIR /app/code

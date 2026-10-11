@@ -538,13 +538,13 @@ theme's `loadedPlugins.<key>` gate to false and hide UI.
 
 ### Patches Applied to Upstream
 
-Two files in `patches/` are copied over upstream Indiekit files during Docker build:
+One file in `patches/` is copied over an upstream Indiekit file during Docker build:
 
 | Patch | Target | Purpose |
 |-------|--------|---------|
-| `patches/routes.js` | `node_modules/@indiekit/indiekit/lib/routes.js` | Remove rate limiting from authenticated routes (prevents 429 behind reverse proxy) |
-| `patches/error.js` | `node_modules/@indiekit/indiekit/lib/middleware/error.js` | Suppress stack traces in production (prevents info leakage) |
-| `patches/indieauth.js` | `node_modules/@indiekit/indiekit/lib/indieauth.js` | Double-gated devMode auth bypass — requires BOTH `devMode: true` in config AND `INDIEKIT_ALLOW_DEV_AUTH=1` env var. Prevents accidental production exposure if devMode is left enabled. |
+| `patches/routes.js` | `node_modules/@indiekit/indiekit/lib/routes.js` | Two-tier rate limiting with none on authenticated routes (prevents 429 behind reverse proxy), no limiter on root-mounted public routes, and the `contentNegotiationRoutes` hook the ActivityPub plugin needs |
+
+`patches/error.js` and `patches/indieauth.js` were removed on 2026-10-11 with the move to core 1.0.0-beta.30: upstream now sends stack traces only when `NODE_ENV=development` (stricter than the patch) and has the same widened redirect check, so both patches had become ways of reverting upstream fixes. The patch's `INDIEKIT_ALLOW_DEV_AUTH` gate guarded nothing: `devMode` is derived only from `NODE_ENV === "development"`, and the image sets `NODE_ENV=production`.
 
 When upstream Indiekit updates, diff the new files against our patches and re-apply the same principles.
 
